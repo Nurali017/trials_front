@@ -219,9 +219,9 @@ export const useCreateTrialFromPlan = () => {
       data: {
         region_id: number;
         culture_id: number;
-        start_date: string;
+        area_ha: number;
         responsible_person?: string;
-        harvest_timing?: string;
+        exclude_participants?: number[];
       };
     }) => trialPlansService.createTrialFromPlan(planId, data),
     onSuccess: () => {

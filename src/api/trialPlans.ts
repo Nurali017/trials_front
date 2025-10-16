@@ -19,10 +19,11 @@ export interface TrialPlanParticipant {
   patents_sort_id: number;
   sort_name?: string; // Название сорта
   statistical_group: 0 | 1; // 0 = стандарт, 1 = испытываемый
-  seeds_provision: 'provided' | 'imported' | 'purchased';
+  seeds_provision: 'provided' | 'not_provided';
   maturity_group: string;
   application_id?: number | null;
   year_started?: number; // Год начала испытания (из заявки)
+  application_submit_year?: number; // Год подачи заявки
   trials: TrialPlanTrial[]; // Trials по регионам
 }
 
@@ -76,7 +77,7 @@ export interface AddParticipantsRequest {
     patents_sort_id?: number; // Для реестра
     sort_name?: string; // Название сорта
     statistical_group: 0 | 1;
-    seeds_provision: 'provided' | 'imported' | 'purchased';
+    seeds_provision: 'provided' | 'not_provided';
     maturity_group: string;
     application?: number; // Для заявок
     trials: Array<{
@@ -254,7 +255,7 @@ class TrialPlansService {
       patents_sort_id: number;
       maturity_group: string;
       statistical_group: 0 | 1;
-      seeds_provision: 'provided' | 'imported' | 'purchased';
+      seeds_provision: 'provided' | 'not_provided';
       application_id?: number;
     }
   ): Promise<TrialPlanParticipant> {
@@ -303,9 +304,9 @@ class TrialPlansService {
   async createTrialFromPlan(planId: number, data: {
     region_id: number;
     culture_id: number;
-    start_date: string;
+    area_ha: number;
     responsible_person?: string;
-    harvest_timing?: string;
+    exclude_participants?: number[];
   }) {
     const response = await apiClient.post(`/trial-plans/${planId}/create-trial/`, data);
     return response.data;

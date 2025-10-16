@@ -32,7 +32,7 @@ import { trialPlansService } from '@/api/trialPlans';
 import { useRegions, useCultures } from '@/hooks/useDictionaries';
 import apiClient from '@/api/client';
 
-interface BulkAddParticipantsDialogProps {
+interface AddParticipantsToPlanDialogProps {
   open: boolean;
   onClose: () => void;
   trialPlanId: number;
@@ -55,12 +55,12 @@ interface ParticipantData {
   participant_number: number;
   maturity_group: string;
   statistical_group: 0 | 1;
-  seeds_provision: 'provided' | 'imported' | 'purchased';
+  seeds_provision: 'provided' | 'not_provided';
   application_id?: number;
   source: 'registry' | 'applications'; // Источник для этого участника
 }
 
-export const AddParticipantsToPlanDialog: React.FC<BulkAddParticipantsDialogProps> = ({
+export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogProps> = ({
   open,
   onClose,
   trialPlanId,
@@ -251,7 +251,7 @@ export const AddParticipantsToPlanDialog: React.FC<BulkAddParticipantsDialogProp
       participant_number: 0, // Будет установлено автоматически на бэке
       maturity_group: '',
       statistical_group: 1,
-      seeds_provision: 'provided',
+      seeds_provision: 'provided', // Значение по умолчанию
       source: 'registry', // По умолчанию из реестра
     };
     setParticipants([...participants, newParticipant]);
@@ -625,13 +625,12 @@ export const AddParticipantsToPlanDialog: React.FC<BulkAddParticipantsDialogProp
                           handleUpdateParticipant(
                             participantIndex,
                             'seeds_provision',
-                            e.target.value as 'provided' | 'imported' | 'purchased'
+                            e.target.value as 'provided' | 'not_provided'
                           )
                         }
                       >
-                        <MenuItem value="provided">Предоставлено</MenuItem>
-                        <MenuItem value="imported">Импорт</MenuItem>
-                        <MenuItem value="purchased">Куплено</MenuItem>
+                        <MenuItem value="provided">Предоставлены</MenuItem>
+                        <MenuItem value="not_provided">Не предоставлены</MenuItem>
                       </Select>
                     </FormControl>
                   </Grid>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -32,8 +32,6 @@ import {
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
-import { useQuery } from '@tanstack/react-query';
-import apiClient from '../../api/client';
 import { useTrialPlan, useDeleteTrialPlan } from '../../hooks/useTrialPlans';
 import { useDictionaries } from '../../hooks/useDictionaries';
 import { AddCultureToPlanDialog } from '../../components/trialPlans/AddCultureToPlanDialog';
@@ -66,44 +64,7 @@ const TrialPlanDetail: React.FC = () => {
   const { data: trialPlan, isLoading, error } = useTrialPlan(Number(id));
   const deleteTrialPlan = useDeleteTrialPlan();
 
-  // Загружаем все уникальные patents_sort_id из участников плана для получения названий сортов
-  const uniquePatentsSortIds = useMemo(() => {
-    if (!trialPlan?.cultures) return [];
-    const ids = new Set<number>();
-    trialPlan.cultures.forEach((culture: any) => {
-      culture.trial_types?.forEach((trialType: any) => {
-        trialType.participants?.forEach((participant: any) => {
-          if (participant.patents_sort_id) {
-            ids.add(participant.patents_sort_id);
-          }
-        });
-      });
-    });
-    return Array.from(ids);
-  }, [trialPlan]);
-
-  // Загружаем названия сортов по patents_sort_id
-  const { data: sortNamesMap = {}, isLoading: isLoadingSortNames } = useQuery({
-    queryKey: ['sortNames', uniquePatentsSortIds],
-    queryFn: async () => {
-      if (uniquePatentsSortIds.length === 0) return {};
-      
-      const promises = uniquePatentsSortIds.map(async (patentsSortId) => {
-        try {
-          const response = await apiClient.get(`/patents/sorts/${patentsSortId}/`);
-          return { [patentsSortId]: response.data?.name || null };
-        } catch (error) {
-          console.warn(`Не удалось загрузить название сорта для patents_sort_id: ${patentsSortId}`, error);
-          return { [patentsSortId]: null };
-        }
-      });
-      
-      const results = await Promise.all(promises);
-      return results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-    },
-    enabled: uniquePatentsSortIds.length > 0,
-    staleTime: 5 * 60 * 1000, // 5 минут
-  });
+  // Названия сортов уже приходят в поле sort_name из API
 
   // Получить название предшественника
   const getPredecessorName = (predecessor: string | number): string => {
@@ -128,17 +89,9 @@ const TrialPlanDetail: React.FC = () => {
 
   // Получить название сорта
   const getSortName = (participant: TrialPlanParticipant): string => {
-    if (participant.sort_name) {
-      return participant.sort_name;
-    }
-    
-    const sortName = sortNamesMap[participant.patents_sort_id];
-    if (sortName) {
-      return sortName;
-    }
-    
-    return `Сорт #${participant.patents_sort_id}`;
+    return participant.sort_name || `Сорт #${participant.patents_sort_id}`;
   };
+
 
   // Получаем структуру: регионы с их предшественниками
   const getRegionsWithPredecessors = (participants: TrialPlanParticipant[]) => {
@@ -660,14 +613,9 @@ const TrialPlanDetail: React.FC = () => {
                                         bgcolor: '#F0F8FF',
                                         fontSize: '0.9rem'
                                       }}>
-                                        <Box display="flex" alignItems="center" gap={1}>
-                                          <Typography variant="body2" fontWeight={500}>
-                                            {getSortName(participant)}
-                                          </Typography>
-                                          {isLoadingSortNames && !participant.sort_name && (
-                                            <CircularProgress size={12} />
-                                          )}
-                                        </Box>
+                                        <Typography variant="body2" fontWeight={500}>
+                                          {getSortName(participant)}
+                                        </Typography>
                                       </TableCell>
                                       <TableCell 
                                         align="center"
@@ -677,7 +625,7 @@ const TrialPlanDetail: React.FC = () => {
                                           fontSize: '0.9rem'
                                         }}
                                       >
-                                        {participant.application_submit_year || participant.year_started || '—'}
+                                        {participant.application_submit_year || '—'}
                                       </TableCell>
 
                                       {regionsWithPreds.map(region => 
@@ -730,9 +678,7 @@ const TrialPlanDetail: React.FC = () => {
                                           fontSize: '0.9rem'
                                         }}
                                       >
-                                        {participant.seeds_provision === 'provided' ? 'Предоставлен' : 
-                                         participant.seeds_provision === 'imported' ? 'Импорт' :
-                                         participant.seeds_provision === 'purchased' ? 'Куплен' : 'Не предоставлен'}
+                                        {participant.seeds_provision === 'provided' ? 'Предоставлены' : 'Не предоставлены'}
                                       </TableCell>
                                     </TableRow>
                                   );

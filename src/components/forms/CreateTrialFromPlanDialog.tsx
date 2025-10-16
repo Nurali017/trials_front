@@ -7,20 +7,20 @@ import {
   Button,
   TextField,
   Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Typography,
   Box,
   Alert,
   CircularProgress,
+  Checkbox,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Divider,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
-import { useCreateTrialFromPlan } from '@/hooks/useTrialPlans';
-import { getTodayISO } from '@/utils/dateHelpers';
-import type { HarvestTiming } from '@/types/api.types';
+import { useCreateTrialFromPlan, useTrialPlan } from '@/hooks/useTrialPlans';
 
 interface Task {
   plan_id: number;
@@ -47,14 +47,45 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const { mutate: createTrial, isPending } = useCreateTrialFromPlan();
+  const { data: trialPlan, isLoading: planLoading } = useTrialPlan(task.plan_id);
 
-  const [startDate, setStartDate] = useState(getTodayISO());
+  const [areaHa, setAreaHa] = useState<number>(0.5);
   const [responsiblePerson, setResponsiblePerson] = useState('');
-  const [harvestTiming, setHarvestTiming] = useState<HarvestTiming | ''>('');
+  const [excludeParticipants, setExcludeParticipants] = useState<number[]>([]);
+
+  // Получаем всех участников для данной культуры
+  const getParticipantsForCulture = () => {
+    if (!trialPlan?.cultures) return [];
+    
+    const culture = trialPlan.cultures.find(c => c.culture === task.culture_id);
+    if (!culture) return [];
+    
+    const allParticipants: any[] = [];
+    culture.trial_types.forEach(trialType => {
+      trialType.participants.forEach(participant => {
+        if (!allParticipants.find(p => p.patents_sort_id === participant.patents_sort_id)) {
+          allParticipants.push(participant);
+        }
+      });
+    });
+    
+    return allParticipants;
+  };
+
+  // Получаем всех участников для данной культуры
+  const participants = getParticipantsForCulture();
+
+  const handleParticipantToggle = (participantId: number) => {
+    setExcludeParticipants(prev => 
+      prev.includes(participantId) 
+        ? prev.filter(id => id !== participantId)
+        : [...prev, participantId]
+    );
+  };
 
   const handleSubmit = () => {
-    if (!startDate) {
-      enqueueSnackbar('Укажите дату начала испытания', { variant: 'warning' });
+    if (areaHa <= 0) {
+      enqueueSnackbar('Укажите площадь испытания больше 0', { variant: 'warning' });
       return;
     }
 
@@ -69,9 +100,9 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
         data: {
           region_id: regionId,
           culture_id: task.culture_id,
-          start_date: startDate,
+          area_ha: areaHa,
           responsible_person: responsiblePerson,
-          harvest_timing: harvestTiming || undefined,
+          exclude_participants: excludeParticipants.length > 0 ? excludeParticipants : undefined,
         },
       },
       {
@@ -95,7 +126,7 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
         Начать испытание
       </DialogTitle>
@@ -107,26 +138,29 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
             <Typography variant="body2" gutterBottom>
               <strong>Культура:</strong> {task.culture_name}
             </Typography>
+            <Typography variant="body2" gutterBottom>
+              <strong>Участников в плане:</strong> {task.participants_count}
+            </Typography>
             <Typography variant="body2">
-              <strong>Участников:</strong> {task.participants_count}
+              <strong>Год испытания:</strong> {trialPlan?.year || 'Не указан'}
             </Typography>
           </Alert>
 
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
-                label="Дата начала испытания"
-                type="date"
+                label="Площадь испытания (га)"
+                type="number"
                 fullWidth
                 required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                helperText="Укажите планируемую дату начала полевых работ"
+                value={areaHa}
+                onChange={(e) => setAreaHa(Number(e.target.value))}
+                inputProps={{ min: 0.1, max: 10, step: 0.1 }}
+                helperText="Укажите площадь в гектарах"
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 label="ФИО ответственного"
                 fullWidth
@@ -138,30 +172,88 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
               />
             </Grid>
 
-            <Grid item xs={12}>
-              <FormControl fullWidth>
-                <InputLabel>Срок созревания</InputLabel>
-                <Select
-                  value={harvestTiming}
-                  label="Срок созревания"
-                  onChange={(e) => setHarvestTiming(e.target.value as HarvestTiming | '')}
-                >
-                  <MenuItem value="">Не указан</MenuItem>
-                  <MenuItem value="very_early">Очень ранний</MenuItem>
-                  <MenuItem value="early">Ранний</MenuItem>
-                  <MenuItem value="medium_early">Среднеранний</MenuItem>
-                  <MenuItem value="medium">Средний</MenuItem>
-                  <MenuItem value="medium_late">Среднепоздний</MenuItem>
-                  <MenuItem value="late">Поздний</MenuItem>
-                  <MenuItem value="very_late">Очень поздний</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
+            {/* Участники для исключения */}
+            {planLoading ? (
+              <Grid item xs={12}>
+                <Box display="flex" justifyContent="center" py={2}>
+                  <CircularProgress size={24} />
+                </Box>
+              </Grid>
+            ) : participants.length > 0 ? (
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom>
+                  Участники для исключения (опционально)
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Выберите участников, которых нужно исключить из испытания:
+                </Typography>
+                
+                <Box sx={{ maxHeight: 300, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+                  <List dense>
+                    {participants.map((participant, index) => (
+                      <React.Fragment key={participant.patents_sort_id}>
+                        <ListItem>
+                          <ListItemIcon>
+                            <Checkbox
+                              checked={excludeParticipants.includes(participant.patents_sort_id)}
+                              onChange={() => handleParticipantToggle(participant.patents_sort_id)}
+                            />
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={
+                              <Box>
+                                <Typography variant="body1" fontWeight={500}>
+                                  {participant.sort_name || `Сорт #${participant.patents_sort_id}`}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  ID: {participant.patents_sort_id}
+                                </Typography>
+                              </Box>
+                            }
+                            secondary={
+                              <Box>
+                                <Typography variant="caption" display="block">
+                                  Группа: {participant.statistical_group === 0 ? 'Стандарт' : 'Испытываемый'}
+                                </Typography>
+                                <Typography variant="caption" display="block">
+                                  Семена: {participant.seeds_provision === 'provided' ? 'Предоставлены' : 'Не предоставлены'}
+                                </Typography>
+                                <Typography variant="caption" display="block">
+                                  Группа спелости: {participant.maturity_group}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                        {index < participants.length - 1 && <Divider />}
+                      </React.Fragment>
+                    ))}
+                  </List>
+                </Box>
+                
+                {excludeParticipants.length > 0 && (
+                  <Alert severity="info" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      Исключено участников: {excludeParticipants.length} из {participants.length}
+                    </Typography>
+                  </Alert>
+                )}
+              </Grid>
+            ) : (
+              <Grid item xs={12}>
+                <Alert severity="warning">
+                  <Typography variant="body2">
+                    Участники для данной культуры не найдены в плане
+                  </Typography>
+                </Alert>
+              </Grid>
+            )}
           </Grid>
 
           <Alert severity="warning" sx={{ mt: 3 }}>
             <Typography variant="body2">
               После создания испытания вы сможете заполнить форму 008 с результатами полевых наблюдений.
+              Год испытания будет взят из плана.
             </Typography>
           </Alert>
         </Box>

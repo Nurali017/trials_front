@@ -628,7 +628,7 @@ export interface TrialPlanParticipant {
   patents_sort_id: number;
   sort_name?: string;
   statistical_group: 0 | 1; // 0 = стандарт, 1 = испытываемый
-  seeds_provision: 'provided' | 'imported' | 'purchased' | 'not_provided';
+  seeds_provision: 'provided' | 'not_provided';
   participant_number: number;
   maturity_group: string;
   application?: number | null;
@@ -683,7 +683,7 @@ export interface AddParticipantsRequest {
     participant_number: number;
     maturity_group: string;
     statistical_group: 0 | 1;
-    seeds_provision: 'provided' | 'imported' | 'purchased' | 'not_provided';
+    seeds_provision: 'provided' | 'not_provided';
     application_id?: number;
   }>;
 }
