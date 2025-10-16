@@ -51,6 +51,7 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
 
   const [areaHa, setAreaHa] = useState<number>(0.5);
   const [responsiblePerson, setResponsiblePerson] = useState('');
+  const [startDate, setStartDate] = useState('');
   const [excludeParticipants, setExcludeParticipants] = useState<number[]>([]);
 
   // Получаем всех участников для данной культуры
@@ -94,6 +95,11 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
       return;
     }
 
+    if (!startDate.trim()) {
+      enqueueSnackbar('Укажите дату начала испытания', { variant: 'warning' });
+      return;
+    }
+
     createTrial(
       {
         planId: task.plan_id,
@@ -102,6 +108,7 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
           culture_id: task.culture_id,
           area_ha: areaHa,
           responsible_person: responsiblePerson,
+          start_date: startDate,
           exclude_participants: excludeParticipants.length > 0 ? excludeParticipants : undefined,
         },
       },
@@ -169,6 +176,21 @@ export const CreateTrialFromPlanDialog: React.FC<CreateTrialFromPlanDialogProps>
                 onChange={(e) => setResponsiblePerson(e.target.value)}
                 placeholder="Иванов Иван Иванович"
                 helperText="Агроном или специалист, ответственный за испытание"
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Дата начала испытания"
+                type="date"
+                fullWidth
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                InputLabelProps={{
+                  shrink: true,
+                }}
+                helperText="Дата начала полевых работ"
               />
             </Grid>
 

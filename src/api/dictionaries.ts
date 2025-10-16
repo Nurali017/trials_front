@@ -80,9 +80,45 @@ export const dictionariesService = {
       is_quality?: boolean; 
       category?: string;
       search?: string;
+      is_required?: boolean;
+      is_recommended?: boolean;
+      is_auto_calculated?: boolean;
     }) => {
-      const { data } = await apiClient.get<{ results: Indicator[] } | Indicator[]>('/indicators/', { params });
-      return Array.isArray(data) ? data : data.results || [];
+      // Загружаем все показатели, обходя пагинацию
+      let allIndicators: any[] = [];
+      let nextUrl: string | null = '/indicators/';
+      let pageNum = 1;
+      
+      console.log('🔍 Загрузка всех показателей...');
+      
+      while (nextUrl) {
+        const queryParams = { ...params, page: pageNum, page_size: 100 };
+        const { data } = await apiClient.get<{ results: any[]; next: string | null; count: number } | any[]>(
+          nextUrl.startsWith('http') ? nextUrl : '/indicators/',
+          nextUrl.startsWith('http') ? undefined : { params: queryParams }
+        );
+        
+        if (Array.isArray(data)) {
+          // Если пришел массив напрямую - возвращаем его
+          console.log('✅ Получен массив показателей:', data.length);
+          return data;
+        } else {
+          // Пагинированный ответ
+          allIndicators = [...allIndicators, ...data.results];
+          nextUrl = data.next;
+          console.log(`📄 Страница ${pageNum}: получено ${data.results.length}, всего ${allIndicators.length} из ${data.count}`);
+          pageNum++;
+          
+          // Защита от бесконечного цикла
+          if (pageNum > 50) {
+            console.warn('⚠️ Достигнут лимит страниц');
+            break;
+          }
+        }
+      }
+      
+      console.log('✅ Загружено всего показателей:', allIndicators.length);
+      return allIndicators;
     },
     getById: async (id: number) => {
       const { data } = await apiClient.get<Indicator>(`/indicators/${id}/`);

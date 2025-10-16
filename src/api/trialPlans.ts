@@ -306,6 +306,7 @@ class TrialPlansService {
     culture_id: number;
     area_ha: number;
     responsible_person?: string;
+    start_date: string;
     exclude_participants?: number[];
   }) {
     const response = await apiClient.post(`/trial-plans/${planId}/create-trial/`, data);

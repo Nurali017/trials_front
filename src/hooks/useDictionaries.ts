@@ -50,9 +50,14 @@ export const useRegions = (oblast?: number, climate_zone?: number) => {
 // Indicators
 export const useIndicators = (params?: { 
   culture?: number; 
+  culture_group?: number;
   is_universal?: boolean; 
   is_quality?: boolean; 
   category?: string;
+  search?: string;
+  is_required?: boolean;
+  is_recommended?: boolean;
+  is_auto_calculated?: boolean;
 }) => {
   return useQuery({
     queryKey: ['indicators', params],
