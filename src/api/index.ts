@@ -1,0 +1,11 @@
+export { applicationsService } from './applications';
+export { trialsService, trialParticipantsService } from './trials';
+export { resultsService } from './results';
+export { dictionariesService } from './dictionaries';
+export { documentsService } from './documents';
+export { authService } from './auth';
+export { trialPlansService } from './trialPlans';
+export { annualDecisionsService } from './annualDecisions';
+export { patentsService } from './patents';
+export { default as apiClient } from './client';
+export type { User, LoginRequest, LoginResponse, RegisterRequest, RegisterResponse } from './auth';
