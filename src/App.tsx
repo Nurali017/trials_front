@@ -26,7 +26,7 @@ import { OblastsPage } from './pages/Dictionaries/OblastsPage';
 import { IndicatorsPage } from './pages/Dictionaries/IndicatorsPage';
 import { SortsList } from './pages/SortRecords/SortsList';
 import { TrialPlansList } from './pages/TrialPlans';
-import TrialPlanDetailNew from './pages/TrialPlans/TrialPlanDetailNew';
+import TrialPlanDetail from './pages/TrialPlans/TrialPlanDetail';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -152,7 +152,7 @@ function App() {
                   {/* Trial Plans */}
                   <Route path="trial-plans">
                     <Route index element={<TrialPlansList />} />
-                    <Route path=":id" element={<TrialPlanDetailNew />} />
+                    <Route path=":id" element={<TrialPlanDetail />} />
                   </Route>
 
                   {/* Dictionaries */}

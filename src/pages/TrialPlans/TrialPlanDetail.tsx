@@ -36,51 +36,10 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../api/client';
 import { useTrialPlan, useDeleteTrialPlan } from '../../hooks/useTrialPlans';
 import { useDictionaries } from '../../hooks/useDictionaries';
-import { AddParticipantsToPlanDialog } from '../../components/trialPlans/AddParticipantsToPlanDialog';
 import { AddCultureToPlanDialog } from '../../components/trialPlans/AddCultureToPlanDialog';
 import { AddTrialTypeToCultureDialog } from '../../components/trialPlans/AddTrialTypeToCultureDialog';
-
-// Типы для новой структуры с типами испытаний
-interface TrialData {
-  id: number;
-  region_id: number;
-  region_name: string;
-  predecessor: string | number;
-  predecessor_culture_name?: string;
-  seeding_rate: number;
-  season: string;
-}
-
-interface ParticipantWithTrials {
-  id: number;
-  patents_sort_id: number;
-  sort_name?: string;
-  statistical_group: 0 | 1;
-  seeds_provision: string;
-  participant_number: number;
-  maturity_group: string;
-  application?: number;
-  year_started?: number;
-  application_id?: number;
-  trials: TrialData[];
-  application_submit_year?: number;
-}
-
-interface TrialTypeData {
-  id: number;
-  trial_type_id: number;
-  trial_type_name: string;
-  season: string;
-  participants: ParticipantWithTrials[];
-}
-
-interface CultureData {
-  id: number;
-  culture: number;
-  culture_name: string;
-  culture_group: string;
-  trial_types: TrialTypeData[];
-}
+import { AddParticipantsToPlanDialog } from '../../components/trialPlans/AddParticipantsToPlanDialog';
+import type { TrialPlanParticipant } from '../../api/trialPlans';
 
 const TrialPlanDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -90,9 +49,9 @@ const TrialPlanDetail: React.FC = () => {
 
   const [filterCulture, setFilterCulture] = useState<number | ''>('');
   const [filterMaturityGroup, setFilterMaturityGroup] = useState<string>('');
-  const [addParticipantsDialogOpen, setAddParticipantsDialogOpen] = useState(false);
   const [addCultureDialogOpen, setAddCultureDialogOpen] = useState(false);
   const [addTrialTypeDialogOpen, setAddTrialTypeDialogOpen] = useState(false);
+  const [addParticipantsDialogOpen, setAddParticipantsDialogOpen] = useState(false);
   const [selectedCultureForParticipants, setSelectedCultureForParticipants] = useState<{
     oblastId: number;
     cultureId: number;
@@ -120,10 +79,7 @@ const TrialPlanDetail: React.FC = () => {
         });
       });
     });
-    const result = Array.from(ids);
-    console.log('🔍 Найдены уникальные patents_sort_id:', result);
-    console.log('📊 Данные плана испытаний (новая структура):', trialPlan);
-    return result;
+    return Array.from(ids);
   }, [trialPlan]);
 
   // Загружаем названия сортов по patents_sort_id
@@ -132,24 +88,18 @@ const TrialPlanDetail: React.FC = () => {
     queryFn: async () => {
       if (uniquePatentsSortIds.length === 0) return {};
       
-      console.log('🚀 Загружаем названия сортов для patents_sort_id:', uniquePatentsSortIds);
-      
       const promises = uniquePatentsSortIds.map(async (patentsSortId) => {
         try {
-          // Используем правильный endpoint для получения сорта по patents_sort_id
           const response = await apiClient.get(`/patents/sorts/${patentsSortId}/`);
-          console.log(`✅ Загружен сорт ${patentsSortId}:`, response.data);
           return { [patentsSortId]: response.data?.name || null };
         } catch (error) {
-          console.warn(`❌ Не удалось загрузить название сорта для patents_sort_id: ${patentsSortId}`, error);
+          console.warn(`Не удалось загрузить название сорта для patents_sort_id: ${patentsSortId}`, error);
           return { [patentsSortId]: null };
         }
       });
       
       const results = await Promise.all(promises);
-      const finalMap = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-      console.log('📋 Итоговая карта названий сортов:', finalMap);
-      return finalMap;
+      return results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
     },
     enabled: uniquePatentsSortIds.length > 0,
     staleTime: 5 * 60 * 1000, // 5 минут
@@ -165,52 +115,33 @@ const TrialPlanDetail: React.FC = () => {
     return predecessor;
   };
 
+  // Получить название сезона на русском
+  const getSeasonLabel = (season: string): string => {
+    const seasonLabels = {
+      spring: 'Весна',
+      autumn: 'Осень',
+      summer: 'Лето',
+      winter: 'Зима',
+    };
+    return seasonLabels[season as keyof typeof seasonLabels] || season;
+  };
+
   // Получить название сорта
-  const getSortName = (participant: ParticipantWithTrials): string => {
-    // Сначала проверяем, есть ли sort_name у участника
+  const getSortName = (participant: TrialPlanParticipant): string => {
     if (participant.sort_name) {
-      console.log(`✅ Найдено sort_name для участника ${participant.id}:`, participant.sort_name);
       return participant.sort_name;
     }
     
-    // Если нет, пытаемся получить из загруженной карты названий
     const sortName = sortNamesMap[participant.patents_sort_id];
     if (sortName) {
-      console.log(`✅ Найдено название в sortNamesMap для patents_sort_id ${participant.patents_sort_id}:`, sortName);
       return sortName;
     }
     
-    // Отладочная информация
-    console.log(`❌ Не найдено название для patents_sort_id ${participant.patents_sort_id}:`, {
-      participantId: participant.id,
-      patentsSortId: participant.patents_sort_id,
-      sortName: participant.sort_name,
-      sortNamesMap: sortNamesMap,
-      hasSortName: !!participant.sort_name
-    });
-    
-    // Если ничего не найдено, возвращаем fallback
     return `Сорт #${participant.patents_sort_id}`;
   };
 
-  // Берем культуры напрямую из trialPlan.cultures с новой структурой
-  const cultureData: CultureData[] = useMemo(() => {
-    const plan = trialPlan as any; // Временное приведение типа
-    if (!plan?.cultures) return [];
-
-    return plan.cultures.map((culture: any) => ({
-      id: culture.id,
-      culture: culture.culture,
-      culture_name: culture.culture_name,
-      culture_group: culture.culture_group,
-      trial_types: culture.trial_types || [],
-    }));
-  }, [trialPlan]);
-
-  // Функции-хелперы (обычные функции, не useMemo)
   // Получаем структуру: регионы с их предшественниками
-  const getRegionsWithPredecessors = (participants: ParticipantWithTrials[]) => {
-    // Map: region_id -> Set of predecessors
+  const getRegionsWithPredecessors = (participants: TrialPlanParticipant[]) => {
     const regionPredMap = new Map<number, { name: string; predecessors: Set<string> }>();
     
     participants.forEach(p => {
@@ -228,60 +159,22 @@ const TrialPlanDetail: React.FC = () => {
       });
     });
     
-    // Конвертируем в массив с сортировкой
-    const result = Array.from(regionPredMap.entries()).map(([region_id, data]) => ({
+    return Array.from(regionPredMap.entries()).map(([region_id, data]) => ({
       region_id,
       region_name: data.name,
       predecessors: Array.from(data.predecessors).sort(),
     }));
-    
-    console.log('📍 Регионы с предшественниками:', result);
-    return result;
   };
 
-  const getCommonPredecessor = (participants: ParticipantWithTrials[], regionId: number): string => {
-    // Получаем все trials для данного региона
-    const regionTrials = participants
-      .flatMap(p => p.trials)
-      .filter(t => t.region_id === regionId);
-    
-    if (regionTrials.length === 0) return '—';
-    
-    // Подсчитываем частоту каждого предшественника
-    const predecessorCounts = new Map<string, number>();
-    regionTrials.forEach(trial => {
-      const predName = trial.predecessor_culture_name || getPredecessorName(trial.predecessor);
-      predecessorCounts.set(predName, (predecessorCounts.get(predName) || 0) + 1);
-    });
-    
-    // Находим самый распространенный предшественник
-    let mostCommon = '—';
-    let maxCount = 0;
-    predecessorCounts.forEach((count, predName) => {
-      if (count > maxCount) {
-        maxCount = count;
-        mostCommon = predName;
-      }
-    });
-    
-    // Если есть другие предшественники, добавляем их
-    const allPredecessors = Array.from(predecessorCounts.keys());
-    if (allPredecessors.length > 1) {
-      return allPredecessors.join(' / ');
-    }
-    
-    return mostCommon;
-  };
-
-  const getCommonSeedingRate = (participants: ParticipantWithTrials[], regionId: number): string => {
+  const getCommonSeedingRate = (participants: TrialPlanParticipant[], regionId: number): string => {
     const trial = participants
       .flatMap(p => p.trials)
       .find(t => t.region_id === regionId);
     return trial ? `${trial.seeding_rate}` : '—';
   };
 
-  const groupByMaturity = (participants: ParticipantWithTrials[]) => {
-    const groups = new Map<string, ParticipantWithTrials[]>();
+  const groupByMaturity = (participants: TrialPlanParticipant[]) => {
+    const groups = new Map<string, TrialPlanParticipant[]>();
 
     participants.forEach(p => {
       const group = p.maturity_group || 'Не указана';
@@ -297,34 +190,28 @@ const TrialPlanDetail: React.FC = () => {
     }));
   };
 
-  const getSeedsIcon = (provision: string) => {
-    switch (provision) {
-      case 'provided': return '✅';
-      case 'imported': return '📦';
-      case 'purchased': return '🛒';
-      default: return '❌';
-    }
-  };
-
-  // Функции-хелперы для вычислений (не useMemo)
   const getAllMaturityGroups = () => {
     const groups = new Set<string>();
-    cultureData.forEach(c => {
-      c.trial_types.forEach(tt => {
-        tt.participants.forEach(p => {
-          if (p.maturity_group) groups.add(p.maturity_group);
+    if (trialPlan?.cultures) {
+      trialPlan.cultures.forEach(c => {
+        c.trial_types.forEach(tt => {
+          tt.participants.forEach(p => {
+            if (p.maturity_group) groups.add(p.maturity_group);
+          });
         });
       });
-    });
+    }
     return Array.from(groups).sort();
   };
 
   const getStats = () => {
+    if (!trialPlan?.cultures) return { totalParticipants: 0, standards: 0, tested: 0, totalTrials: 0, cultures: 0 };
+    
     let totalParticipants = 0;
     let standards = 0;
     let totalTrials = 0;
     
-    cultureData.forEach(c => {
+    trialPlan.cultures.forEach(c => {
       c.trial_types.forEach(tt => {
         tt.participants.forEach(p => {
           totalParticipants++;
@@ -335,7 +222,7 @@ const TrialPlanDetail: React.FC = () => {
     });
     
     const tested = totalParticipants - standards;
-    const cultures = cultureData.length;
+    const cultures = trialPlan.cultures.length;
 
     return { totalParticipants, standards, tested, totalTrials, cultures };
   };
@@ -363,7 +250,7 @@ const TrialPlanDetail: React.FC = () => {
     return <Alert severity="error">Ошибка при загрузке плана</Alert>;
   }
 
-  // Вычисляемые значения (не useMemo)
+  const cultures = trialPlan.cultures || [];
   const allMaturityGroups = getAllMaturityGroups();
   const stats = getStats();
 
@@ -371,14 +258,14 @@ const TrialPlanDetail: React.FC = () => {
     <Box>
       {/* Header */}
       <Box mb={3}>
-          <Button
-            variant="text"
-            startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/trial-plans')}
+        <Button
+          variant="text"
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/trial-plans')}
           sx={{ mb: 2 }}
-          >
-            Назад к списку
-          </Button>
+        >
+          Назад к списку
+        </Button>
 
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
           <Box>
@@ -392,35 +279,35 @@ const TrialPlanDetail: React.FC = () => {
             </Typography>
           </Box>
 
-        <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1}>
             <Tooltip title="Добавить культуру">
-            <Button
-              variant="outlined"
+              <Button
+                variant="outlined"
                 startIcon={<AddIcon />}
                 onClick={() => setAddCultureDialogOpen(true)}
-            >
+              >
                 Добавить культуру
-            </Button>
-          </Tooltip>
+              </Button>
+            </Tooltip>
             <Tooltip title="Экспорт в Excel">
               <IconButton>
                 <ExportIcon />
               </IconButton>
-          </Tooltip>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteIcon />}
-            onClick={handleDelete}
-          >
+            </Tooltip>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDelete}
+            >
               Удалить план
-          </Button>
+            </Button>
           </Stack>
         </Stack>
       </Box>
 
       {/* Фильтры */}
-      {cultureData.length > 0 && (
+      {cultures.length > 0 && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Stack direction="row" spacing={2}>
@@ -432,7 +319,7 @@ const TrialPlanDetail: React.FC = () => {
                   onChange={(e) => setFilterCulture(e.target.value === '' ? '' : Number(e.target.value))}
                 >
                   <MenuItem value="">Все культуры</MenuItem>
-                  {cultureData.map(c => (
+                  {cultures.map(c => (
                     <MenuItem key={c.culture} value={c.culture}>
                       {c.culture_name}
                     </MenuItem>
@@ -469,7 +356,7 @@ const TrialPlanDetail: React.FC = () => {
       )}
 
       {/* Таблицы по культурам и типам испытаний */}
-      {cultureData.length === 0 ? (
+      {cultures.length === 0 ? (
         <Card>
           <CardContent>
             <Alert severity="info">
@@ -478,14 +365,14 @@ const TrialPlanDetail: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
-        cultureData.map(culture => (
+        cultures.map(culture => (
           <Card key={culture.culture} sx={{ mb: 3 }}>
             <CardContent>
               {/* Заголовок культуры */}
               <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Typography variant="h5" fontWeight="bold">
-                    Культура {culture.culture_name}
+                    Культура: {culture.culture_name.toLowerCase()}
                   </Typography>
                   <Chip label={culture.culture_group} color="info" size="small" />
                 </Stack>
@@ -516,8 +403,6 @@ const TrialPlanDetail: React.FC = () => {
                 culture.trial_types.map(trialType => {
                   const regionsWithPreds = getRegionsWithPredecessors(trialType.participants);
                   const maturityGroups = groupByMaturity(trialType.participants);
-                  const hasParticipants = trialType.participants.length > 0;
-                  const hasTrials = trialType.participants.some(p => p.trials.length > 0);
                   
                   // Подсчитываем общее количество столбцов
                   const totalPredColumns = regionsWithPreds.reduce((sum, r) => sum + r.predecessors.length, 0);
@@ -530,7 +415,7 @@ const TrialPlanDetail: React.FC = () => {
                           <Typography variant="h6" color="primary" fontWeight="bold">
                             А) {trialType.trial_type_name.toLowerCase()}
                           </Typography>
-                          <Chip label={`Сезон: ${trialType.season}`} color="secondary" size="small" />
+                          <Chip label={`Сезон: ${getSeasonLabel(trialType.season)}`} color="secondary" size="small" />
                           <Chip label={`Участников: ${trialType.participants.length}`} variant="outlined" size="small" />
                         </Stack>
                         <Button
@@ -552,280 +437,345 @@ const TrialPlanDetail: React.FC = () => {
                       </Box>
 
                       {/* Таблица участников в формате Excel */}
-                      {!hasParticipants ? (
-                        <Alert severity="info">
-                          Участников пока нет. Нажмите "Добавить участников" выше.
-                        </Alert>
-                      ) : !hasTrials ? (
-                        <Alert severity="warning">
-                          Участники добавлены, но региональные испытания не настроены. Нажмите "Добавить участников" для настройки испытаний по регионам.
-                        </Alert>
-                      ) : (
-                        <TableContainer component={Paper} variant="outlined">
-                          <Table size="small" sx={{ borderCollapse: 'collapse' }}>
-                            <TableHead>
-                              {/* Заголовок таблицы */}
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small" sx={{ borderCollapse: 'collapse' }}>
+                          <TableHead>
+                            {/* Заголовок таблицы */}
+                            <TableRow>
+                              <TableCell 
+                                colSpan={totalPredColumns + 5} 
+                                align="center" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  fontSize: '1.1rem',
+                                  bgcolor: '#4A90E2', 
+                                  color: 'white',
+                                  border: '1px solid #333',
+                                  py: 2
+                                }}
+                              >
+                                Культура: {culture.culture_name.toLowerCase()}
+                              </TableCell>
+                            </TableRow>
+                            
+                            <TableRow>
+                              <TableCell 
+                                colSpan={totalPredColumns + 5} 
+                                align="left" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  fontSize: '1rem',
+                                  bgcolor: '#4A90E2', 
+                                  color: 'white',
+                                  border: '1px solid #333',
+                                  py: 1
+                                }}
+                              >
+                                А) {trialType.trial_type_name.toLowerCase()}
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Строка с заголовками колонок */}
+                            <TableRow>
+                              <TableCell 
+                                rowSpan={3} 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  minWidth: 50, 
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  textAlign: 'center',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                № п/п
+                              </TableCell>
+                              <TableCell 
+                                rowSpan={3} 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  minWidth: 200, 
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                сорт
+                              </TableCell>
+                              <TableCell 
+                                rowSpan={3} 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  minWidth: 120, 
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                год начало испытания по области
+                              </TableCell>
+                              
+                              {regionsWithPreds.map(region => (
+                                <TableCell 
+                                  key={region.region_id} 
+                                  colSpan={region.predecessors.length} 
+                                  align="center" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    bgcolor: '#4A90E2', 
+                                    color: 'white',
+                                    border: '1px solid #333',
+                                    fontSize: '0.9rem'
+                                  }}
+                                >
+                                  {region.region_name}
+                                </TableCell>
+                              ))}
+                              
+                              <TableCell 
+                                rowSpan={3} 
+                                align="center" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  minWidth: 100, 
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                всего сортоопытов
+                              </TableCell>
+                              <TableCell 
+                                rowSpan={3} 
+                                align="center" 
+                                sx={{ 
+                                  fontWeight: 'bold', 
+                                  minWidth: 120, 
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                обеспеченность семенами
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Строка с предшественниками */}
+                            <TableRow>
+                              {regionsWithPreds.map(region => 
+                                region.predecessors.map((pred, idx) => (
+                                  <TableCell 
+                                    key={`${region.region_id}-pred-${idx}`} 
+                                    align="center" 
+                                    sx={{ 
+                                      fontSize: '0.8rem', 
+                                      fontWeight: 600, 
+                                      bgcolor: '#D1E7F7',
+                                      border: '1px solid #333'
+                                    }}
+                                  >
+                                    {pred}
+                                  </TableCell>
+                                ))
+                              )}
+                            </TableRow>
+                            
+                            {/* Строка с коэффициентами высева */}
+                            <TableRow>
+                              {regionsWithPreds.map(region => 
+                                region.predecessors.map((_, idx) => (
+                                  <TableCell 
+                                    key={`${region.region_id}-rate-${idx}`} 
+                                    align="center" 
+                                    sx={{ 
+                                      fontSize: '0.8rem', 
+                                      bgcolor: '#E8F4FD',
+                                      border: '1px solid #333'
+                                    }}
+                                  >
+                                    {getCommonSeedingRate(trialType.participants, region.region_id)}
+                                  </TableCell>
+                                ))
+                              )}
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {maturityGroups.length === 0 ? (
                               <TableRow>
                                 <TableCell 
                                   colSpan={totalPredColumns + 5} 
                                   align="center" 
                                   sx={{ 
-                                    fontWeight: 'bold', 
-                                    fontSize: '1rem',
-                                    bgcolor: 'primary.main', 
-                                    color: 'white',
-                                    border: '1px solid #ddd'
+                                    py: 4,
+                                    border: '1px solid #333',
+                                    bgcolor: '#F0F8FF'
                                   }}
                                 >
-                                  {trialType.trial_type_name} - {culture.culture_name}
+                                  <Typography variant="body1" color="text.secondary">
+                                    Нет участников. Нажмите "Добавить участников" выше.
+                                  </Typography>
                                 </TableCell>
                               </TableRow>
-                              
-                              {/* Строка с заголовками колонок */}
-                              <TableRow>
-                                <TableCell 
-                                  rowSpan={3} 
-                                  sx={{ 
-                                    fontWeight: 'bold', 
-                                    minWidth: 50, 
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100',
-                                    textAlign: 'center'
-                                  }}
-                                >
-                                  № п/п
-                                </TableCell>
-                                <TableCell 
-                                  rowSpan={3} 
-                                  sx={{ 
-                                    fontWeight: 'bold', 
-                                    minWidth: 200, 
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100'
-                                  }}
-                                >
-                                  Сорт
-                                </TableCell>
-                                <TableCell 
-                                  rowSpan={3} 
-                                  sx={{ 
-                                    fontWeight: 'bold', 
-                                    minWidth: 120, 
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100'
-                                  }}
-                                >
-                                  Год начало испытания по области
-                                </TableCell>
-                                
-                                {regionsWithPreds.map(region => (
+                            ) : (
+                              maturityGroups.map(({ group, participants }) => (
+                              <React.Fragment key={group}>
+                                {/* Заголовок группы спелости */}
+                                <TableRow>
                                   <TableCell 
-                                    key={region.region_id} 
-                                    colSpan={region.predecessors.length} 
-                                    align="center" 
-                                    sx={{ 
-                                      fontWeight: 'bold', 
-                                      bgcolor: 'primary.light', 
-                                      color: 'white',
-                                      border: '1px solid #ddd'
+                                    colSpan={totalPredColumns + 5} 
+                                    sx={{
+                                      bgcolor: '#B8D4F0', 
+                                      fontWeight: 'bold',
+                                      fontSize: '0.9rem',
+                                      py: 1,
+                                      border: '1px solid #333',
+                                      textAlign: 'center'
                                     }}
                                   >
-                                    {region.region_name}
+                                    {group}
                                   </TableCell>
-                                ))}
-                                
-                                <TableCell 
-                                  rowSpan={3} 
-                                  align="center" 
-                                  sx={{ 
-                                    fontWeight: 'bold', 
-                                    minWidth: 100, 
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100'
-                                  }}
-                                >
-                                  Всего сортоопытов
-                                </TableCell>
-                                <TableCell 
-                                  rowSpan={3} 
-                                  align="center" 
-                                  sx={{ 
-                                    fontWeight: 'bold', 
-                                    minWidth: 120, 
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100'
-                                  }}
-                                >
-                                  Обеспеченность семенами
-                                </TableCell>
-                              </TableRow>
-                              
-                              {/* Строка с предшественниками */}
-                              <TableRow>
-                                {regionsWithPreds.map(region => 
-                                  region.predecessors.map((pred, idx) => (
-                                    <TableCell 
-                                      key={`${region.region_id}-pred-${idx}`} 
-                                      align="center" 
-                                      sx={{ 
-                                        fontSize: '0.75rem', 
-                                        fontWeight: 600, 
-                                        bgcolor: 'grey.200',
-                                        border: '1px solid #ddd'
-                                      }}
-                                    >
-                                      {pred}
-                                    </TableCell>
-                                  ))
-                                )}
-                              </TableRow>
-                              
-                              {/* Строка с коэффициентами высева */}
-                              <TableRow>
-                                {regionsWithPreds.map(region => 
-                                  region.predecessors.map((pred, idx) => (
-                                    <TableCell 
-                                      key={`${region.region_id}-rate-${idx}`} 
-                                      align="center" 
-                                      sx={{ 
-                                        fontSize: '0.75rem', 
-                                        bgcolor: 'grey.100',
-                                        border: '1px solid #ddd'
-                                      }}
-                                    >
-                                      {getCommonSeedingRate(trialType.participants, region.region_id)}
-                                    </TableCell>
-                                  ))
-                                )}
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {maturityGroups.map(({ group, participants }) => (
-                                <React.Fragment key={group}>
-                                  {/* Заголовок группы спелости */}
-                                  <TableRow>
-                                    <TableCell 
-                                      colSpan={totalPredColumns + 5} 
-                                      sx={{
-                                        bgcolor: 'grey.300', 
-                                        fontWeight: 'bold',
-                                        fontSize: '0.875rem',
-                                        py: 1,
-                                        border: '1px solid #ddd',
-                                        textAlign: 'center'
-                                      }}
-                                    >
-                                      {group}
-                                    </TableCell>
-                                  </TableRow>
+                                </TableRow>
 
-                                  {/* Участники */}
-                                  {participants.map((participant, idx) => {
-                                    const participantNumber = participants.findIndex(p => p.id === participant.id) + 1;
-                                    const globalNumber = maturityGroups
-                                      .slice(0, maturityGroups.findIndex(g => g.group === group))
-                                      .reduce((sum, g) => sum + g.participants.length, 0) + participantNumber;
-                                    
-                                    return (
-                                      <TableRow key={participant.id} hover>
-                                        <TableCell 
-                                          align="center"
-                                          sx={{ border: '1px solid #ddd' }}
-                                        >
-                                          {globalNumber}
-                                        </TableCell>
-                                        <TableCell sx={{ border: '1px solid #ddd' }}>
-                                          <Box display="flex" alignItems="center" gap={1}>
-                                            <Typography variant="body2" fontWeight={500}>
-                                              {getSortName(participant)}
-                                            </Typography>
-                                            {isLoadingSortNames && !participant.sort_name && (
-                                              <CircularProgress size={12} />
-                                            )}
-                                          </Box>
-                                        </TableCell>
-                                        <TableCell 
-                                          align="center"
-                                          sx={{ border: '1px solid #ddd' }}
-                                        >
-                                          {participant.application_submit_year || participant.year_started || '—'}
-                                        </TableCell>
+                                {/* Участники */}
+                                {participants.map((participant) => {
+                                  const participantNumber = participants.findIndex(p => p.id === participant.id) + 1;
+                                  const globalNumber = maturityGroups
+                                    .slice(0, maturityGroups.findIndex(g => g.group === group))
+                                    .reduce((sum, g) => sum + g.participants.length, 0) + participantNumber;
+                                  
+                                  return (
+                                    <TableRow key={participant.id} hover>
+                                      <TableCell 
+                                        align="center"
+                                        sx={{ 
+                                          border: '1px solid #333',
+                                          bgcolor: '#F0F8FF',
+                                          fontSize: '0.9rem'
+                                        }}
+                                      >
+                                        {globalNumber}
+                                      </TableCell>
+                                      <TableCell sx={{ 
+                                        border: '1px solid #333',
+                                        bgcolor: '#F0F8FF',
+                                        fontSize: '0.9rem'
+                                      }}>
+                                        <Box display="flex" alignItems="center" gap={1}>
+                                          <Typography variant="body2" fontWeight={500}>
+                                            {getSortName(participant)}
+                                          </Typography>
+                                          {isLoadingSortNames && !participant.sort_name && (
+                                            <CircularProgress size={12} />
+                                          )}
+                                        </Box>
+                                      </TableCell>
+                                      <TableCell 
+                                        align="center"
+                                        sx={{ 
+                                          border: '1px solid #333',
+                                          bgcolor: '#F0F8FF',
+                                          fontSize: '0.9rem'
+                                        }}
+                                      >
+                                        {participant.application_submit_year || participant.year_started || '—'}
+                                      </TableCell>
 
-                                        {regionsWithPreds.map(region => 
-                                          region.predecessors.map((pred, predIdx) => {
-                                            // Проверяем, есть ли trial с этим регионом И этим предшественником
-                                            const matchingTrial = participant.trials.find(t => {
-                                              const predName = t.predecessor_culture_name || getPredecessorName(t.predecessor);
-                                              return t.region_id === region.region_id && predName === pred;
-                                            });
-                                            
-                                            return (
-                                              <TableCell 
-                                                key={`${region.region_id}-${pred}-${predIdx}`} 
-                                                align="center"
-                                                sx={{ border: '1px solid #ddd' }}
-                                              >
-                                                {matchingTrial ? (
-                                                  <Typography variant="body2" fontWeight={600}>
-                                                    Х {participant.statistical_group === 0 ? 'ст' : ''}
-                                                  </Typography>
-                                                ) : (
-                                                  <Typography variant="body2" color="text.disabled">—</Typography>
-                                                )}
-                                              </TableCell>
-                                            );
-                                          })
-                                        )}
+                                      {regionsWithPreds.map(region => 
+                                        region.predecessors.map((pred, predIdx) => {
+                                          // Проверяем, есть ли trial с этим регионом И этим предшественником
+                                          const matchingTrial = participant.trials.find(t => {
+                                            const predName = t.predecessor_culture_name || getPredecessorName(t.predecessor);
+                                            return t.region_id === region.region_id && predName === pred;
+                                          });
+                                          
+                                          return (
+                                            <TableCell
+                                              key={`${region.region_id}-${pred}-${predIdx}`}
+                                              align="center"
+                                              sx={{
+                                                border: '1px solid #333',
+                                                bgcolor: '#F0F8FF',
+                                                fontSize: '0.9rem'
+                                              }}
+                                            >
+                                              {matchingTrial ? (
+                                                <Typography variant="body2" fontWeight={600}>
+                                                  Х {participant.statistical_group === 0 ? 'ст' : 'б/ст'}
+                                                </Typography>
+                                              ) : (
+                                                <Typography variant="body2" color="text.disabled">
+                                                  {participant.trials.length > 0 ? 'Нет испытания' : '—'}
+                                                </Typography>
+                                              )}
+                                            </TableCell>
+                                          );
+                                        })
+                                      )}
 
-                                        <TableCell 
-                                          align="center"
-                                          sx={{ border: '1px solid #ddd' }}
-                                        >
-                                          {participant.trials.length}
-                                        </TableCell>
-                                        <TableCell 
-                                          align="center"
-                                          sx={{ border: '1px solid #ddd' }}
-                                        >
-                                          {participant.seeds_provision === 'provided' ? 'Предоставлен' : 
-                                           participant.seeds_provision === 'imported' ? 'Импорт' :
-                                           participant.seeds_provision === 'purchased' ? 'Куплен' : 'Не предоставлен'}
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                                </React.Fragment>
-                              ))}
-                              
-                              {/* Итоговая строка */}
-                              <TableRow>
-                                <TableCell 
-                                  colSpan={totalPredColumns + 3}
-                                  align="right"
-                                  sx={{ 
-                                    fontWeight: 'bold',
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100'
-                                  }}
-                                >
-                                  Итого:
-                                </TableCell>
-                                <TableCell 
-                                  align="center"
-                                  sx={{ 
-                                    fontWeight: 'bold',
-                                    border: '1px solid #ddd',
-                                    bgcolor: 'grey.100'
-                                  }}
-                                >
-                                  {trialType.participants.reduce((sum, p) => sum + p.trials.length, 0)}
-                                </TableCell>
-                                <TableCell sx={{ border: '1px solid #ddd' }}></TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-                      )}
+                                      <TableCell 
+                                        align="center"
+                                        sx={{ 
+                                          border: '1px solid #333',
+                                          bgcolor: '#F0F8FF',
+                                          fontSize: '0.9rem'
+                                        }}
+                                      >
+                                        {participant.trials.length}
+                                      </TableCell>
+                                      <TableCell 
+                                        align="center"
+                                        sx={{ 
+                                          border: '1px solid #333',
+                                          bgcolor: '#F0F8FF',
+                                          fontSize: '0.9rem'
+                                        }}
+                                      >
+                                        {participant.seeds_provision === 'provided' ? 'Предоставлен' : 
+                                         participant.seeds_provision === 'imported' ? 'Импорт' :
+                                         participant.seeds_provision === 'purchased' ? 'Куплен' : 'Не предоставлен'}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </React.Fragment>
+                            ))
+                            )}
+                            
+                            {/* Итоговая строка */}
+                            {maturityGroups.length > 0 && (
+                            <TableRow>
+                              <TableCell 
+                                colSpan={totalPredColumns + 3}
+                                align="right"
+                                sx={{ 
+                                  fontWeight: 'bold',
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                Итого:
+                              </TableCell>
+                              <TableCell 
+                                align="center"
+                                sx={{ 
+                                  fontWeight: 'bold',
+                                  border: '1px solid #333',
+                                  bgcolor: '#E8F4FD',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                {trialType.participants.reduce((sum, p) => sum + p.trials.length, 0)}
+                              </TableCell>
+                              <TableCell sx={{ 
+                                border: '1px solid #333',
+                                bgcolor: '#E8F4FD'
+                              }}></TableCell>
+                            </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     </Box>
                   );
                 })
@@ -835,13 +785,29 @@ const TrialPlanDetail: React.FC = () => {
         ))
       )}
 
-      {/* Диалоги */}
+      {/* Dialogs */}
       <AddCultureToPlanDialog
         open={addCultureDialogOpen}
         onClose={() => setAddCultureDialogOpen(false)}
         trialPlanId={Number(id)}
-        existingCultureIds={cultureData.map(c => c.culture)}
+        existingCultureIds={cultures.map(c => c.culture)}
       />
+
+      {selectedCultureForTrialType && (
+        <AddTrialTypeToCultureDialog
+          open={addTrialTypeDialogOpen}
+          onClose={() => {
+            setAddTrialTypeDialogOpen(false);
+            setSelectedCultureForTrialType(null);
+          }}
+          trialPlanId={Number(id)}
+          cultureId={selectedCultureForTrialType.cultureId}
+          cultureName={selectedCultureForTrialType.cultureName}
+          existingTrialTypeIds={cultures
+            .find(c => c.culture === selectedCultureForTrialType.cultureId)
+            ?.trial_types.map(tt => tt.trial_type_id) || []}
+        />
+      )}
 
       {selectedCultureForParticipants && (
         <AddParticipantsToPlanDialog
@@ -857,24 +823,9 @@ const TrialPlanDetail: React.FC = () => {
           cultureName={selectedCultureForParticipants.cultureName}
         />
       )}
-
-      {selectedCultureForTrialType && (
-        <AddTrialTypeToCultureDialog
-          open={addTrialTypeDialogOpen}
-          onClose={() => {
-            setAddTrialTypeDialogOpen(false);
-            setSelectedCultureForTrialType(null);
-          }}
-          trialPlanId={Number(id)}
-          cultureId={selectedCultureForTrialType.cultureId}
-          cultureName={selectedCultureForTrialType.cultureName}
-          existingTrialTypeIds={cultureData
-            .find(c => c.culture === selectedCultureForTrialType.cultureId)
-            ?.trial_types.map(tt => tt.trial_type_id) || []}
-        />
-      )}
     </Box>
   );
 };
 
 export default TrialPlanDetail;
+
