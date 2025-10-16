@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Button,
+  TextField,
   FormControl,
   InputLabel,
   Select,
@@ -14,572 +15,686 @@ import {
   Alert,
   CircularProgress,
   Box,
-  TextField,
-  Card,
-  CardContent,
+  Autocomplete,
   IconButton,
-  Stack,
+  Paper,
   Chip,
-  Divider,
+  Stack,
 } from '@mui/material';
-import {
+import { 
+  Save as SaveIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
-  Save as SaveIcon,
 } from '@mui/icons-material';
-import { useForm, Controller, useFieldArray } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useAddParticipantsToTrialType, useSuggestApplications } from '../../hooks/useTrialPlans';
-import { useDictionaries } from '../../hooks/useDictionaries';
-import { useQuery } from '@tanstack/react-query';
-import apiClient from '../../api/client';
 import { useSnackbar } from 'notistack';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { trialPlansService } from '@/api/trialPlans';
+import { useRegions, useCultures } from '@/hooks/useDictionaries';
+import apiClient from '@/api/client';
 
-// Validation schema для региональных испытаний (верхний уровень)
-const regionalTrialSchema = z.object({
-  region_id: z.union([z.number().min(1, 'Выберите регион'), z.literal('')]),
-  predecessor: z.union([z.string(), z.number()]),
-  seeding_rate: z.number().min(0.1, 'Норма высева должна быть больше 0'),
-  season: z.enum(['spring', 'autumn', 'summer', 'winter']),
-  trial_type_id: z.number().optional(),
-});
-
-// Validation schema для участников
-const participantSchema = z.object({
-  source_type: z.enum(['application', 'registry']),
-  application_id: z.union([z.number(), z.literal('')]).optional(),
-  patents_sort_id: z.union([z.number(), z.literal('')]).optional(),
-  statistical_group: z.union([z.literal(0), z.literal(1)]),
-  seeds_provision: z.enum(['provided', 'imported', 'purchased']),
-  maturity_group: z.string().optional(),
-});
-
-const addParticipantsSchema = z.object({
-  regional_trials: z.array(regionalTrialSchema).min(1, 'Добавьте хотя бы одно региональное испытание'),
-  participants: z.array(participantSchema).min(1, 'Добавьте хотя бы одного участника'),
-});
-
-type AddParticipantsFormData = z.infer<typeof addParticipantsSchema>;
-
-interface AddParticipantsToPlanDialogProps {
+interface BulkAddParticipantsDialogProps {
   open: boolean;
   onClose: () => void;
   trialPlanId: number;
-  oblastId: number; // ID области из плана
-  cultureId: number; // ID культуры из Patents Service
+  oblastId: number;
+  cultureId: number;
   trialTypeId: number;
   cultureName?: string;
 }
 
-export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogProps> = ({
+interface RegionData {
+  region_id: number;
+  region_name?: string;
+  predecessor: string | number;
+  seeding_rate: number;
+}
+
+interface ParticipantData {
+  patents_sort_id: number;
+  sort_name?: string;
+  participant_number: number;
+  maturity_group: string;
+  statistical_group: 0 | 1;
+  seeds_provision: 'provided' | 'imported' | 'purchased';
+  application_id?: number;
+  source: 'registry' | 'applications'; // Источник для этого участника
+}
+
+export const AddParticipantsToPlanDialog: React.FC<BulkAddParticipantsDialogProps> = ({
   open,
   onClose,
   trialPlanId,
   oblastId,
   cultureId,
+  trialTypeId,
   cultureName,
 }) => {
-  const addParticipants = useAddParticipantsToTrialType();
-  const dictionaries = useDictionaries();
-
-  // Загружаем заявки для культуры и области
-  const { data: applicationsData } = useSuggestApplications({
-    oblast_id: typeof oblastId === 'number' ? oblastId : (oblastId as any)?.id,
-    culture_id: cultureId,
-  }, open);
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
   
-  // API возвращает { applications: [...] }
-  const suggestedApplications = applicationsData?.applications || [];
+  const [selectedRegions, setSelectedRegions] = useState<RegionData[]>([]); // Общие регионы для всех
+  const [participants, setParticipants] = useState<ParticipantData[]>([]);
 
-  // Загружаем регионы только для области плана (через бэк фильтр)
-  const { data: regionsByOblast = [] } = useQuery({
-    queryKey: ['regionsByOblast', oblastId],
-    queryFn: () => apiClient.get('/regions/', { params: { oblast: oblastId } }).then(res => {
-      // Может вернуться массив или объект с results
-      return Array.isArray(res.data) ? res.data : res.data.results || [];
-    }),
-    enabled: open && !!oblastId,
-    staleTime: 5 * 60 * 1000, // 5 минут
+  const { data: regions = [] } = useRegions(oblastId);
+  
+  // Load sorts from Applications (заявки)
+  const { data: applicationSortsData = [], isLoading: loadingApplicationSorts } = useQuery({
+    queryKey: ['suggest-applications', oblastId, cultureId],
+    queryFn: async () => {
+      const response = await apiClient.get('/trial-plans/suggest-applications/', {
+        params: { 
+          oblast_id: oblastId,
+          culture_id: cultureId,
+        }
+      });
+      
+      console.log('📝 Ответ suggest-applications:', response.data);
+      const applications = response.data.applications || [];
+      console.log('📝 Найдено заявок:', applications.length, applications);
+      
+      // Преобразуем заявки в формат для выбора
+      const mapped = applications.map((app: any) => {
+        console.log('📝 Обработка заявки:', {
+          id: app.id,
+          application_number: app.application_number,
+          sort_record: app.sort_record,
+          maturity_group: app.maturity_group,
+        });
+        
+        const result = {
+          id: app.id, // ID заявки для внутреннего использования
+          name: app.sort_record?.name || `Сорт из заявки #${app.application_number}`,
+          application_id: app.id,
+          application_number: app.application_number,
+          maturity_group: app.maturity_group,
+          patents_sort_id: app.sort_record?.patents_sort_id || app.sort_record?.id || app.sort_record,
+          source: 'applications',
+        };
+        
+        console.log('📝 Преобразовано в:', result);
+        return result;
+      });
+      
+      console.log('📝 Итого преобразованных заявок:', mapped.length, mapped);
+      return mapped;
+    },
+    enabled: !!cultureId && !!oblastId && open,
+    staleTime: 1000 * 60 * 5,
   });
 
-  const { enqueueSnackbar } = useSnackbar();
+  // Load sorts from Registry (реестр) - через suggest-applications с region_id
+  const { data: registrySortsData = [], isLoading: loadingRegistrySorts } = useQuery({
+    queryKey: ['registry-sorts', cultureId, selectedRegions.map(r => r.region_id)],
+    queryFn: async () => {
+      // Если регионы не выбраны, не загружаем
+      if (selectedRegions.length === 0) return [];
+      
+      const allSorts: any[] = [];
+      
+      // Загружаем сорта для каждого выбранного региона
+      for (const region of selectedRegions) {
+        if (!region.region_id) continue;
+        
+        try {
+          const response = await apiClient.get('/sort-records/by-culture/', {
+            params: { 
+              culture_id: cultureId,
+              region_id: region.region_id, // ⭐ Опционально - для конкретного региона
+            }
+          });
+          
+          console.log(`📋 Полный ответ для региона ${region.region_id}:`, response.data);
+          console.log(`📋 Ключи в ответе:`, Object.keys(response.data));
+          
+          // Проверяем все возможные варианты ответа
+          const sorts = response.data.sorts || 
+                       response.data.registry_sorts || 
+                       response.data.registry || 
+                       response.data.available_sorts || 
+                       [];
+          
+          console.log(`📋 Найдено сортов из реестра для региона ${region.region_id}:`, sorts.length, sorts);
+          allSorts.push(...sorts);
+        } catch (error) {
+          console.warn(`Ошибка загрузки сортов для региона ${region.region_id}:`, error);
+        }
+      }
+      
+      // Убираем дубликаты по patents_sort_id
+      const uniqueSorts = Array.from(
+        new Map(allSorts.map(s => [s.patents_sort_id || s.id, s])).values()
+      );
+      
+      return uniqueSorts.map((sort: any) => ({
+        id: sort.id,
+        name: sort.name,
+        patents_sort_id: sort.patents_sort_id || sort.id,
+        source: 'registry',
+      }));
+    },
+    enabled: !!cultureId && open && selectedRegions.length > 0,
+    staleTime: 1000 * 60 * 5,
+  });
 
-  const { control, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<AddParticipantsFormData>({
-    resolver: zodResolver(addParticipantsSchema),
-    defaultValues: {
-      regional_trials: [],
-      participants: [],
+  const applicationSorts = applicationSortsData;
+  const registrySorts = registrySortsData;
+
+  // Load cultures for predecessor
+  const { data: cultures = [] } = useCultures();
+
+  const addParticipantsMutation = useMutation({
+    mutationFn: async (participantsData: ParticipantData[]) => {
+      // ⭐ НОВЫЙ ПОДХОД: Отправляем всех участников одним запросом
+      const transformedData = {
+        participants: participantsData.map(participantData => ({
+          patents_sort_id: participantData.patents_sort_id,
+          sort_name: participantData.sort_name,
+          statistical_group: participantData.statistical_group,
+          seeds_provision: participantData.seeds_provision,
+          maturity_group: participantData.maturity_group,
+          application: participantData.application_id,
+          trials: selectedRegions.map(region => ({
+            region_id: region.region_id,
+            predecessor: region.predecessor,
+            seeding_rate: region.seeding_rate,
+            season: 'spring' as 'spring' | 'autumn' | 'summer' | 'winter', // Сезон берется с уровня типа испытания
+          }))
+        }))
+      };
+
+      // Используем новый API endpoint
+      const response = await trialPlansService.addParticipantsToTrialType(
+        trialPlanId,
+        cultureId,
+        trialTypeId,
+        transformedData
+      );
+      
+      return response;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['trialPlan', trialPlanId] });
+      const participantsCount = data?.participants?.length || data?.length || 0;
+      enqueueSnackbar(`Добавлено участников: ${participantsCount}`, { variant: 'success' });
+      handleClose();
+    },
+    onError: (error: any) => {
+      console.error('Error adding participants:', error);
+      enqueueSnackbar(
+        error?.response?.data?.detail || 'Ошибка при добавлении участников',
+        { variant: 'error' }
+      );
     },
   });
 
-  // Берем первый регион из региональных испытаний для фильтрации сортов
-  const firstRegionId = watch('regional_trials.0.region_id');
-
-  // Загружаем сорта из реестра для культуры и региона (только после выбора региона)
-  const { data: registryData } = useQuery({
-    queryKey: ['sortRecordsByCulture', cultureId, firstRegionId],
-    queryFn: () => apiClient.get('/sort-records/by-culture/', { 
-      params: { culture_id: cultureId, region_id: firstRegionId } 
-    }).then(res => res.data),
-    enabled: open && !!cultureId && !!firstRegionId && typeof firstRegionId === 'number', // Только после выбора региона
-  });
-
-  const registrySorts = registryData?.sorts || [];
-
-  // Автоматическое заполнение maturity_group теперь происходит в onChange обработчиках Select компонентов
-
-  const { fields: trialFields, append: appendTrial, remove: removeTrial } = useFieldArray({
-    control,
-    name: 'regional_trials',
-  });
-
-  const { fields: participantFields, append: appendParticipant, remove: removeParticipant } = useFieldArray({
-    control,
-    name: 'participants',
-  });
-
-  // Получить расшифровку предшественника
-  const getPredecessorDisplayName = (predecessor: string | number) => {
-    if (predecessor === 'fallow') return 'Пар';
-    if (typeof predecessor === 'number') {
-      const culture = dictionaries.cultures?.find((c: any) => c.id === predecessor);
-      return culture?.name || `Культура #${predecessor}`;
-    }
-    return predecessor;
+  const handleAddRegion = () => {
+    setSelectedRegions([...selectedRegions, {
+      region_id: 0,
+      predecessor: 'fallow',
+      seeding_rate: 5.0,
+    }]);
   };
 
-  const onSubmit = async (data: AddParticipantsFormData) => {
-    try {
-    // Преобразуем данные в формат API
-    const transformedData = {
-      participants: data.participants.map((p) => {
-        const baseData = {
-          maturity_group: p.maturity_group || 'Авто', // Из формы или по умолчанию
-          statistical_group: p.statistical_group,
-          seeds_provision: p.seeds_provision,
-          trials: data.regional_trials.map(trial => ({
-            region_id: typeof trial.region_id === 'string' ? Number(trial.region_id) : trial.region_id,
-            predecessor: trial.predecessor,
-            seeding_rate: trial.seeding_rate,
-            season: trial.season,
-            ...(trial.trial_type_id && { trial_type_id: trial.trial_type_id })
-          })), // Все участники получают все региональные испытания
-        };
+  const handleRemoveRegion = (index: number) => {
+    setSelectedRegions(selectedRegions.filter((_, i) => i !== index));
+  };
 
-        // Для заявок
-        if (p.source_type === 'application' && p.application_id && typeof p.application_id === 'number') {
-          const application = suggestedApplications.find((app: any) => app.id === p.application_id);
-          return {
-            ...baseData,
-            application: Number(p.application_id),
-            // Если в заявке есть patents_sort_id, отправляем его тоже
-            ...(application?.sort_record?.patents_sort_id && {
-              patents_sort_id: application.sort_record.patents_sort_id,
-              sort_name: application.sort_record?.name || application.sort_record_data?.name
-            })
-          };
-        }
+  const handleUpdateRegion = (index: number, field: keyof RegionData, value: any) => {
+    const updated = [...selectedRegions];
+    updated[index] = { ...updated[index], [field]: value };
+    setSelectedRegions(updated);
+  };
 
-        // Для реестра
-        if (p.source_type === 'registry' && p.patents_sort_id && typeof p.patents_sort_id === 'number') {
-          // Находим название сорта из загруженных сортов реестра
-          const sortFromRegistry = registrySorts.find((sort: any) => sort.id === p.patents_sort_id);
-          return {
-            ...baseData,
-            patents_sort_id: p.patents_sort_id,
-            sort_name: sortFromRegistry?.name
-          };
-        }
-
-        return baseData;
-      }),
+  const handleAddParticipant = () => {
+    const newParticipant: ParticipantData = {
+      patents_sort_id: 0,
+      participant_number: 0, // Будет установлено автоматически на бэке
+      maturity_group: '',
+      statistical_group: 1,
+      seeds_provision: 'provided',
+      source: 'registry', // По умолчанию из реестра
     };
+    setParticipants([...participants, newParticipant]);
+  };
 
-      await addParticipants.mutateAsync({
-        planId: trialPlanId,
-        cultureId: cultureId,
-        trialTypeId: trialTypeId,
-        data: transformedData,
-      });
+  const handleRemoveParticipant = (index: number) => {
+    setParticipants(participants.filter((_, i) => i !== index));
+  };
 
-      enqueueSnackbar(`Добавлено участников: ${data.participants.length}`, { variant: 'success' });
-      reset();
-      onClose();
-    } catch (error: any) {
-      console.error('Error adding participants:', error);
-      console.error('Error response:', error?.response?.data);
-      console.error('Error status:', error?.response?.status);
-      
-      const errorMessage = error?.response?.data?.detail || 
-                          error?.response?.data?.message || 
-                          error?.message || 
-                          'Ошибка при добавлении участников';
-      
-      enqueueSnackbar(errorMessage, { variant: 'error' });
+  const handleUpdateParticipant = (index: number, field: keyof ParticipantData, value: any) => {
+    console.log(`🔧 Обновление участника ${index}, поле: ${field}, значение:`, value);
+    const updated = [...participants];
+    updated[index] = { ...updated[index], [field]: value };
+    console.log(`🔧 Обновленный участник:`, updated[index]);
+    setParticipants(updated);
+  };
+
+  const handleSubmit = () => {
+    // Валидация регионов
+    if (selectedRegions.length === 0) {
+      enqueueSnackbar('Добавьте хотя бы один регион', { variant: 'error' });
+      return;
     }
+    for (const region of selectedRegions) {
+      if (!region.region_id) {
+        enqueueSnackbar('Выберите регион для всех испытаний', { variant: 'error' });
+        return;
+      }
+    }
+
+    // Валидация участников
+    if (participants.length === 0) {
+      enqueueSnackbar('Добавьте хотя бы одного участника', { variant: 'error' });
+      return;
+    }
+    for (const participant of participants) {
+      if (!participant.patents_sort_id) {
+        enqueueSnackbar('Выберите сорт для всех участников', { variant: 'error' });
+        return;
+      }
+      if (!participant.maturity_group) {
+        enqueueSnackbar('Укажите группу спелости для всех участников', { variant: 'error' });
+        return;
+      }
+    }
+
+    addParticipantsMutation.mutate(participants);
   };
 
   const handleClose = () => {
-    reset();
+    setSelectedRegions([]);
+    setParticipants([]);
     onClose();
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="lg"
+      fullWidth
+    >
       <DialogTitle>
-        Добавить участников для культуры: {cultureName || `ID ${cultureId}`}
+        Массовое добавление участников
       </DialogTitle>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <DialogContent>
-          {/* РЕГИОНАЛЬНЫЕ ИСПЫТАНИЯ (верхний уровень) */}
-          <Box mb={4}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">🌾 Региональные испытания (общие для всех участников)</Typography>
-              <Button variant="outlined" size="small" startIcon={<AddIcon />} onClick={() => appendTrial({ region_id: '', predecessor: 'fallow', seeding_rate: 5.0, season: 'spring' })}>
-                Добавить регион
-              </Button>
-            </Box>
+      <DialogContent>
+        <Box mb={3}>
+          <Typography variant="body2" color="text.secondary">
+            Культура: <strong>{cultureName || `ID ${cultureId}`}</strong> → Тип испытания: <strong>ID {trialTypeId}</strong>
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+            Добавьте участников с их испытаниями по регионам
+          </Typography>
+        </Box>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Эти испытания автоматически применяются ко всем участникам ниже
-            </Typography>
+        {/* ШАГ 1: РЕГИОНЫ */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'primary.50' }}>
+          <Typography variant="h6" gutterBottom>
+            Шаг 1: Выберите регионы (ГСУ)
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            Эти регионы будут применены ко ВСЕМ участникам
+          </Typography>
 
-            {trialFields.length === 0 ? (
-              <Alert severity="warning">Добавьте хотя бы одно региональное испытание</Alert>
-            ) : (
-              <Stack spacing={2}>
-                {trialFields.map((field, index) => (
-                  <Card key={field.id} variant="outlined">
-                    <CardContent>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography variant="subtitle1">Регион #{index + 1}</Typography>
-                        <IconButton color="error" size="small" onClick={() => removeTrial(index)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
+          {selectedRegions.length === 0 ? (
+            <Alert severity="info">
+              Нажмите "Добавить регион" для начала
+            </Alert>
+          ) : (
+            <Stack spacing={1} mb={2}>
+              {selectedRegions.map((region, index) => (
+                <Paper key={index} variant="outlined" sx={{ p: 1.5, bgcolor: 'background.paper' }}>
+                  <Grid container spacing={1} alignItems="center">
+                    <Grid item xs={12} sm={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Регион *</InputLabel>
+                        <Select
+                          value={region.region_id}
+                          label="Регион *"
+                          onChange={(e) => handleUpdateRegion(index, 'region_id', Number(e.target.value))}
+                        >
+                          <MenuItem value={0}>Выберите...</MenuItem>
+                          {regions.map((r: any) => (
+                            <MenuItem key={r.id} value={r.id}>
+                              {r.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
 
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sm={4}>
-                          <Controller
-                            name={`regional_trials.${index}.region_id`}
-                            control={control}
-                            render={({ field }) => (
-                              <FormControl fullWidth error={!!errors.regional_trials?.[index]?.region_id}>
-                                <InputLabel>Регион (ГСУ)</InputLabel>
-                                <Select 
-                                  {...field} 
-                                  value={field.value || ''} 
-                                  label="Регион (ГСУ)"
-                                  onChange={(e) => field.onChange(e.target.value || '')}
-                                >
-                                  <MenuItem value="">
-                                    <em>Выберите регион</em>
-                                  </MenuItem>
-                                  {regionsByOblast.map((region: any) => (
-                                    <MenuItem key={region.id} value={region.id}>
-                                      {region.name}
-                                    </MenuItem>
-                                  ))}
-                                </Select>
-                              </FormControl>
-                            )}
-                          />
-                        </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Предшественник</InputLabel>
+                        <Select
+                          value={region.predecessor}
+                          label="Предшественник"
+                          onChange={(e) => handleUpdateRegion(index, 'predecessor', e.target.value)}
+                        >
+                          <MenuItem value="fallow">Пар</MenuItem>
+                          {cultures.map((culture: any) => (
+                            <MenuItem key={culture.id} value={culture.id}>
+                              {culture.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Grid>
 
-                        <Grid item xs={12} sm={3}>
-                          <Controller
-                            name={`regional_trials.${index}.predecessor`}
-                            control={control}
-                            render={({ field }) => (
-                              <FormControl fullWidth>
-                                <InputLabel>Предшественник</InputLabel>
-                                <Select {...field} label="Предшественник">
-                                  <MenuItem value="fallow">Пар</MenuItem>
-                                  {dictionaries.cultures?.slice(0, 20).map((culture: any) => (
-                                    <MenuItem key={`pred-${index}-${culture.id}`} value={culture.id}>
-                                      {culture.name}
-                                    </MenuItem>
-                                  ))}
-                                </Select>
-                              </FormControl>
-                            )}
-                          />
-                        </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <TextField
+                        label="Норма высева"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        value={region.seeding_rate}
+                        onChange={(e) => handleUpdateRegion(index, 'seeding_rate', Number(e.target.value))}
+                        inputProps={{ step: 0.1 }}
+                      />
+                    </Grid>
 
-                        <Grid item xs={6} sm={2}>
-                          <Controller
-                            name={`regional_trials.${index}.seeding_rate`}
-                            control={control}
-                            render={({ field }) => (
-                              <TextField
-                                {...field}
-                                label="Норма"
-                                type="number"
-                                fullWidth
-                                onChange={(e) => field.onChange(Number(e.target.value))}
-                                inputProps={{ step: 0.1 }}
-                              />
-                            )}
-                          />
-                        </Grid>
+                    <Grid item xs={12} sm={2}>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveRegion(index)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              ))}
+            </Stack>
+          )}
 
-                        <Grid item xs={6} sm={3}>
-                          <Controller
-                            name={`regional_trials.${index}.season`}
-                            control={control}
-                            render={({ field }) => (
-                              <FormControl fullWidth>
-                                <InputLabel>Сезон</InputLabel>
-                                <Select {...field} label="Сезон">
-                                  <MenuItem value="spring">Весна</MenuItem>
-                                  <MenuItem value="autumn">Осень</MenuItem>
-                                  <MenuItem value="summer">Лето</MenuItem>
-                                  <MenuItem value="winter">Зима</MenuItem>
-                                </Select>
-                              </FormControl>
-                            )}
-                          />
-                        </Grid>
-                      </Grid>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddRegion}
+            fullWidth
+          >
+            Добавить регион
+          </Button>
+        </Paper>
 
-                      {/* Показываем расшифровку */}
-                      {watch(`regional_trials.${index}.predecessor`) && (
-                        <Box mt={1}>
+        {/* ШАГ 2: УЧАСТНИКИ */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: 'success.50' }}>
+          <Typography variant="h6" gutterBottom>
+            Шаг 2: Добавьте участников (сорта)
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            Каждый участник будет испытываться во ВСЕХ выбранных регионах
+          </Typography>
+
+          {participants.length === 0 ? (
+            <Alert severity="info">
+              Нажмите "Добавить участника" для начала
+            </Alert>
+          ) : (
+          <Stack spacing={2}>
+            {participants.map((participant, participantIndex) => (
+              <Paper key={participantIndex} variant="outlined" sx={{ p: 2 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    Участник #{participantIndex + 1}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    color="error"
+                    onClick={() => handleRemoveParticipant(participantIndex)}
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+                </Stack>
+
+                <Grid container spacing={2}>
+                  {/* Источник сорта */}
+                  <Grid item xs={12}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Источник сорта</InputLabel>
+                      <Select
+                        value={participant.source}
+                        label="Источник сорта"
+                        onChange={(e) => {
+                          const newSource = e.target.value as 'registry' | 'applications';
+                          console.log(`🔄 Смена источника участника ${participantIndex}: ${participant.source} → ${newSource}`);
+                          
+                          // Обновляем все поля за один раз
+                          const updated = [...participants];
+                          updated[participantIndex] = {
+                            ...updated[participantIndex],
+                            source: newSource,
+                            patents_sort_id: 0,
+                            sort_name: '',
+                            maturity_group: '',
+                            application_id: undefined,
+                          };
+                          console.log(`🔄 Обновленный участник после смены источника:`, updated[participantIndex]);
+                          setParticipants(updated);
+                          
+                          console.log(`🔄 Источник изменен. Доступно сортов:`, 
+                            newSource === 'registry' ? `Реестр: ${registrySorts.length}` : `Заявки: ${applicationSorts.length}`
+                          );
+                        }}
+                      >
+                        <MenuItem value="registry">📋 Реестр сортов ({registrySorts.length})</MenuItem>
+                        <MenuItem value="applications">📝 Из заявок ({applicationSorts.length})</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  {/* Выбор сорта */}
+                  <Grid item xs={12}>
+                    <Autocomplete
+                      key={`sort-select-${participantIndex}-${participant.source}`}
+                      options={participant.source === 'registry' ? registrySorts : applicationSorts}
+                      getOptionLabel={(option: any) => {
+                        if (participant.source === 'applications' && option.application_number) {
+                          return `${option.name} (Заявка #${option.application_number})`;
+                        }
+                        return option.name || '';
+                      }}
+                      loading={participant.source === 'registry' ? loadingRegistrySorts : loadingApplicationSorts}
+                      onOpen={() => {
+                        console.log(`📋 Открыт выбор сорта для участника ${participantIndex}`);
+                        console.log(`📋 Источник: ${participant.source}`);
+                        console.log(`📋 Доступно опций:`, participant.source === 'registry' ? registrySorts.length : applicationSorts.length);
+                        console.log(`📋 Опции:`, participant.source === 'registry' ? registrySorts : applicationSorts);
+                      }}
+                      value={
+                        participant.source === 'registry'
+                          ? registrySorts.find((s: any) => (s.patents_sort_id || s.id) === participant.patents_sort_id) || null
+                          : applicationSorts.find((s: any) => s.application_id === participant.application_id) || null
+                      }
+                      onChange={(_, value) => {
+                        console.log(`🎯 Выбран сорт для участника ${participantIndex}:`, value);
+                        console.log(`🎯 Источник: ${participant.source}`);
+                        
+                        // Обновляем все поля за один раз
+                        const updated = [...participants];
+                        const currentParticipant = updated[participantIndex];
+                        
+                        if (!value) {
+                          updated[participantIndex] = {
+                            ...currentParticipant,
+                            patents_sort_id: 0,
+                            sort_name: '',
+                            maturity_group: '',
+                            application_id: undefined,
+                          };
+                        } else {
+                          // Для обоих источников
+                          const patentsSortId = value.patents_sort_id || value.id || 0;
+                          console.log(`🎯 patents_sort_id для отправки:`, patentsSortId);
+                          
+                          const updates: any = {
+                            patents_sort_id: patentsSortId,
+                            sort_name: value.name || '',
+                          };
+                          
+                          // Автоматически заполняем данные из заявки
+                          if (participant.source === 'applications') {
+                            console.log('📝 Автозаполнение из заявки:', {
+                              maturity_group: value.maturity_group,
+                              application_id: value.application_id,
+                            });
+                            
+                            if (value.maturity_group) {
+                              updates.maturity_group = value.maturity_group;
+                            }
+                            if (value.application_id) {
+                              updates.application_id = value.application_id;
+                            }
+                          } else {
+                            // Для реестра очищаем application_id
+                            updates.application_id = undefined;
+                          }
+                          
+                          updated[participantIndex] = {
+                            ...currentParticipant,
+                            ...updates,
+                          };
+                        }
+                        
+                        console.log(`🎯 Обновленный участник после выбора сорта:`, updated[participantIndex]);
+                        setParticipants(updated);
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Сорт *"
+                          size="small"
+                          InputProps={{
+                            ...params.InputProps,
+                            endAdornment: (
+                              <>
+                                {(participant.source === 'registry' ? loadingRegistrySorts : loadingApplicationSorts) ? 
+                                  <CircularProgress color="inherit" size={20} /> : null}
+                                {params.InputProps.endAdornment}
+                              </>
+                            ),
+                          }}
+                        />
+                      )}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Группа спелости *"
+                      size="small"
+                      fullWidth
+                      value={participant.maturity_group}
+                      onChange={(e) =>
+                        handleUpdateParticipant(participantIndex, 'maturity_group', e.target.value)
+                      }
+                      disabled={participant.source === 'applications' && !!participant.maturity_group}
+                      helperText={
+                        participant.source === 'applications' && participant.maturity_group
+                          ? 'Автоматически из заявки'
+                          : ''
+                      }
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Стат. группа</InputLabel>
+                      <Select
+                        value={participant.statistical_group}
+                        label="Стат. группа"
+                        onChange={(e) =>
+                          handleUpdateParticipant(participantIndex, 'statistical_group', e.target.value as 0 | 1)
+                        }
+                      >
+                        <MenuItem value={0}>Стандарт</MenuItem>
+                        <MenuItem value={1}>Испытываемый</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Семена</InputLabel>
+                      <Select
+                        value={participant.seeds_provision}
+                        label="Семена"
+                        onChange={(e) =>
+                          handleUpdateParticipant(
+                            participantIndex,
+                            'seeds_provision',
+                            e.target.value as 'provided' | 'imported' | 'purchased'
+                          )
+                        }
+                      >
+                        <MenuItem value="provided">Предоставлено</MenuItem>
+                        <MenuItem value="imported">Импорт</MenuItem>
+                        <MenuItem value="purchased">Куплено</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+
+                {/* Информация о регионах */}
+                {selectedRegions.length > 0 && (
+                  <Box mt={2}>
+                    <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+                      Будет испытываться в регионах:
+                    </Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      {selectedRegions.map((region, idx) => {
+                        const regionInfo = regions.find((r: any) => r.id === region.region_id);
+                        return (
                           <Chip
-                            label={`Предшественник: ${getPredecessorDisplayName(watch(`regional_trials.${index}.predecessor`))}`}
+                            key={idx}
+                            label={regionInfo?.name || 'Регион не выбран'}
                             size="small"
+                            color="primary"
                             variant="outlined"
                           />
-                        </Box>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
-            )}
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                )}
+              </Paper>
+            ))}
+          </Stack>
+          )}
 
-            {errors.regional_trials && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {errors.regional_trials.message}
-              </Alert>
-            )}
-          </Box>
-
-          <Divider sx={{ my: 3 }} />
-
-          {/* УЧАСТНИКИ */}
-          <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">👥 Участники культуры</Typography>
-              <Button variant="outlined" size="small" startIcon={<AddIcon />} onClick={() => appendParticipant({ source_type: 'registry', application_id: '', patents_sort_id: '', statistical_group: 1, seeds_provision: 'provided' })}>
-                Добавить участника
-              </Button>
-            </Box>
-
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Участники связываются со всеми региональными испытаниями выше. Номер участника генерируется на сервере, группа спелости заполняется автоматически.
-            </Typography>
-
-            {participantFields.length === 0 ? (
-              <Alert severity="warning">Добавьте участников для продолжения</Alert>
-            ) : (
-              <Stack spacing={2}>
-                {participantFields.map((field, index) => (
-                  <Card key={field.id} variant="outlined">
-                    <CardContent>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Typography variant="subtitle1">Участник #{index + 1}</Typography>
-                          <Chip label={`${trialFields.length} региональных испытаний`} size="small" variant="outlined" color="success" />
-                        </Stack>
-                        <IconButton color="error" size="small" onClick={() => removeParticipant(index)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sm={4}>
-                          <Controller
-                            name={`participants.${index}.source_type`}
-                            control={control}
-                            render={({ field }) => (
-                              <FormControl fullWidth>
-                                <InputLabel>Источник сорта</InputLabel>
-                                <Select {...field} label="Источник сорта">
-                                  <MenuItem value="application">📋 Из заявки</MenuItem>
-                                  <MenuItem value="registry">📚 Из реестра</MenuItem>
-                                </Select>
-                              </FormControl>
-                            )}
-                          />
-                        </Grid>
-
-                        {watch(`participants.${index}.source_type`) === 'application' ? (
-                          <Grid item xs={12} sm={4}>
-                            <Controller
-                              name={`participants.${index}.application_id`}
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl fullWidth>
-                                  <InputLabel>Заявка</InputLabel>
-                                  <Select 
-                                    {...field} 
-                                    value={field.value || ''} 
-                                    label="Заявка"
-                                    onChange={(e) => {
-                                      const selectedAppId = e.target.value;
-                                      field.onChange(selectedAppId || '');
-                                      
-                                      // Автоматически устанавливаем maturity_group из выбранной заявки
-                                      if (selectedAppId && typeof selectedAppId === 'number') {
-                                        const application = suggestedApplications.find((app: any) => app.id === selectedAppId);
-                                        if (application?.maturity_group) {
-                                          setValue(`participants.${index}.maturity_group`, application.maturity_group);
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Выберите заявку</em>
-                                    </MenuItem>
-                                    {suggestedApplications.length === 0 ? (
-                                      <MenuItem value="" disabled>Нет доступных заявок</MenuItem>
-                                    ) : (
-                                      suggestedApplications.map((app: any) => (
-                                        <MenuItem key={app.id} value={app.id}>
-                                          {app.application_number} - {app.sort_record?.name}
-                                        </MenuItem>
-                                      ))
-                                    )}
-                                  </Select>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
-                        ) : (
-                          <Grid item xs={12} sm={4}>
-                            <Controller
-                              name={`participants.${index}.patents_sort_id`}
-                              control={control}
-                              render={({ field }) => (
-                                <FormControl fullWidth disabled={trialFields.length === 0}>
-                                  <InputLabel>Сорт из реестра</InputLabel>
-                                  <Select 
-                                    {...field} 
-                                    value={field.value || ''} 
-                                    label="Сорт из реестра"
-                                    onChange={(e) => {
-                                      const selectedSortId = e.target.value;
-                                      field.onChange(selectedSortId || '');
-                                      
-                                      // Автоматически устанавливаем maturity_group из выбранного сорта
-                                      if (selectedSortId && typeof selectedSortId === 'number') {
-                                        const sort = registrySorts.find((s: any) => s.id === selectedSortId);
-                                        if (sort?.maturity_group) {
-                                          setValue(`participants.${index}.maturity_group`, sort.maturity_group);
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    <MenuItem value="">
-                                      <em>Выберите сорт</em>
-                                    </MenuItem>
-                                    {trialFields.length === 0 ? (
-                                      <MenuItem value="" disabled>Сначала добавьте регион</MenuItem>
-                                    ) : registrySorts.length === 0 ? (
-                                      <MenuItem value="" disabled>Нет сортов для выбранного региона</MenuItem>
-                                    ) : (
-                                      registrySorts.map((sort: any) => (
-                                        <MenuItem key={sort.id} value={sort.id}>
-                                          {sort.name}
-                                        </MenuItem>
-                                      ))
-                                    )}
-                                  </Select>
-                                </FormControl>
-                              )}
-                            />
-                          </Grid>
-                        )}
-
-                        <Grid item xs={6} sm={2}>
-                          <Controller
-                            name={`participants.${index}.statistical_group`}
-                            control={control}
-                            render={({ field }) => (
-                              <FormControl fullWidth>
-                                <InputLabel>Группа</InputLabel>
-                                <Select {...field} label="Группа">
-                                  <MenuItem value={0}>Стандарт</MenuItem>
-                                  <MenuItem value={1}>Испытываемый</MenuItem>
-                                </Select>
-                              </FormControl>
-                            )}
-                          />
-                        </Grid>
-
-
-                        <Grid item xs={6} sm={2}>
-                          <Controller
-                            name={`participants.${index}.seeds_provision`}
-                            control={control}
-                            render={({ field }) => (
-                              <FormControl fullWidth>
-                                <InputLabel>Семена</InputLabel>
-                                <Select {...field} label="Семена">
-                                  <MenuItem value="provided">✅ Получены</MenuItem>
-                                  <MenuItem value="imported">📦 Импорт</MenuItem>
-                                  <MenuItem value="purchased">🛒 Куплены</MenuItem>
-                                </Select>
-                              </FormControl>
-                            )}
-                          />
-                        </Grid>
-                      </Grid>
-
-                      {/* Автоматически заполняемые поля */}
-                      <Box mt={2} p={1} bgcolor="grey.50" borderRadius={1}>
-                        <Stack direction="row" spacing={1} flexWrap="wrap">
-                          <Chip label="Номер: будет назначен сервером" size="small" color="primary" variant="outlined" />
-                          <Chip label="Группа спелости: из сорта (авто)" size="small" color="secondary" variant="outlined" />
-                          <Chip label={watch(`participants.${index}.statistical_group`) === 0 ? 'Стандарт' : 'Испытываемый'} size="small" color={watch(`participants.${index}.statistical_group`) === 0 ? 'success' : 'primary'} />
-                        </Stack>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
-            )}
-
-            {errors.participants && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {errors.participants.message}
-              </Alert>
-            )}
-          </Box>
-        </DialogContent>
-
-        <DialogActions>
-          <Button onClick={handleClose}>Отмена</Button>
           <Button
-            type="submit"
-            variant="contained"
-            startIcon={<SaveIcon />}
-            disabled={addParticipants.isPending || trialFields.length === 0 || participantFields.length === 0}
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddParticipant}
+            fullWidth
+            sx={{ mt: 2 }}
           >
-            {addParticipants.isPending ? (
-              <>
-                <CircularProgress size={16} sx={{ mr: 1 }} />
-                Сохранение...
-              </>
-            ) : (
-              'Добавить участников'
-            )}
+            Добавить участника
           </Button>
-        </DialogActions>
-      </form>
+        </Paper>
+      </DialogContent>
+
+      <DialogActions>
+        <Button onClick={handleClose}>Отмена</Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          startIcon={<SaveIcon />}
+          disabled={addParticipantsMutation.isPending || participants.length === 0}
+        >
+          {addParticipantsMutation.isPending ? (
+            <>
+              <CircularProgress size={16} sx={{ mr: 1 }} />
+              Добавление...
+            </>
+          ) : (
+            `Добавить (${participants.length})`
+          )}
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 };
+
