@@ -140,9 +140,23 @@ class TrialPlansService {
     await apiClient.delete(`/trial-plans/${id}/`);
   }
 
-  // Add participants to trial plan
+  // Add participants to trial plan (старый метод для обратной совместимости)
   async addParticipants(id: number, data: AddParticipantsRequest) {
     const response = await apiClient.post(`/trial-plans/${id}/add-participants/`, data);
+    return response.data;
+  }
+
+  // ⭐ НОВЫЙ МЕТОД: Add participants to specific trial type
+  async addParticipantsToTrialType(
+    planId: number, 
+    cultureId: number, 
+    trialTypeId: number, 
+    data: AddParticipantsRequest
+  ) {
+    const response = await apiClient.post(
+      `/trial-plans/${planId}/cultures/${cultureId}/trial-types/${trialTypeId}/add-participants/`, 
+      data
+    );
     return response.data;
   }
 

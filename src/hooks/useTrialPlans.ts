@@ -87,7 +87,7 @@ export const useDeleteTrialPlan = () => {
   });
 };
 
-// Add participants mutation
+// Add participants mutation (старый метод для обратной совместимости)
 export const useAddParticipants = () => {
   const queryClient = useQueryClient();
 
@@ -97,6 +97,31 @@ export const useAddParticipants = () => {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: trialPlansKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: trialPlansKeys.statistics(variables.id) });
+      queryClient.invalidateQueries({ queryKey: trialPlansKeys.lists() });
+    },
+  });
+};
+
+// ⭐ НОВЫЙ ХУК: Add participants to specific trial type
+export const useAddParticipantsToTrialType = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ 
+      planId, 
+      cultureId, 
+      trialTypeId, 
+      data 
+    }: { 
+      planId: number; 
+      cultureId: number; 
+      trialTypeId: number; 
+      data: AddParticipantsRequest 
+    }) =>
+      trialPlansService.addParticipantsToTrialType(planId, cultureId, trialTypeId, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: trialPlansKeys.detail(variables.planId) });
+      queryClient.invalidateQueries({ queryKey: trialPlansKeys.statistics(variables.planId) });
       queryClient.invalidateQueries({ queryKey: trialPlansKeys.lists() });
     },
   });

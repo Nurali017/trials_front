@@ -30,7 +30,7 @@ import {
 import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useAddParticipants, useSuggestApplications } from '../../hooks/useTrialPlans';
+import { useAddParticipantsToTrialType, useSuggestApplications } from '../../hooks/useTrialPlans';
 import { useDictionaries } from '../../hooks/useDictionaries';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../api/client';
@@ -80,7 +80,7 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
   cultureId,
   cultureName,
 }) => {
-  const addParticipants = useAddParticipants();
+  const addParticipants = useAddParticipantsToTrialType();
   const dictionaries = useDictionaries();
 
   // Загружаем заявки для культуры и области
@@ -197,7 +197,9 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
     };
 
       await addParticipants.mutateAsync({
-        id: trialPlanId,
+        planId: trialPlanId,
+        cultureId: cultureId,
+        trialTypeId: trialTypeId,
         data: transformedData,
       });
 

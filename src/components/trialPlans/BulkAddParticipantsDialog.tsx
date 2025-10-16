@@ -188,44 +188,38 @@ export const BulkAddParticipantsDialog: React.FC<BulkAddParticipantsDialogProps>
 
   const addParticipantsMutation = useMutation({
     mutationFn: async (participantsData: ParticipantData[]) => {
-      // Добавляем участников по одному
-      const results = [];
-      for (const participantData of participantsData) {
-        // Шаг 1: Добавить участника (без participant_number - генерируется на бэке)
-        const participant = await trialPlansService.addParticipantToTrialType(
-          trialPlanId,
-          cultureId,
-          trialTypeId,
-          {
-            patents_sort_id: participantData.patents_sort_id,
-            maturity_group: participantData.maturity_group,
-            statistical_group: participantData.statistical_group,
-            seeds_provision: participantData.seeds_provision,
-            application_id: participantData.application_id,
-          }
-        );
+      // ⭐ НОВЫЙ ПОДХОД: Отправляем всех участников одним запросом
+      const transformedData = {
+        participants: participantsData.map(participantData => ({
+          patents_sort_id: participantData.patents_sort_id,
+          sort_name: participantData.sort_name,
+          statistical_group: participantData.statistical_group,
+          seeds_provision: participantData.seeds_provision,
+          maturity_group: participantData.maturity_group,
+          application: participantData.application_id,
+          trials: selectedRegions.map(region => ({
+            region_id: region.region_id,
+            predecessor: region.predecessor,
+            seeding_rate: region.seeding_rate,
+            season: 'spring', // Сезон берется с уровня типа испытания
+          }))
+        }))
+      };
 
-        // Шаг 2: Добавить trials для этого участника (используем выбранные регионы)
-        for (const region of selectedRegions) {
-          await trialPlansService.addTrialToParticipant(
-            trialPlanId,
-            participant.id,
-            {
-              region_id: region.region_id,
-              predecessor: region.predecessor,
-              seeding_rate: region.seeding_rate,
-              season: 'spring', // Сезон берется с уровня типа испытания
-            }
-          );
-        }
-
-        results.push(participant);
-      }
-      return results;
+      // Используем новый API endpoint
+      const response = await trialPlansService.addParticipantsToTrialType(
+        trialPlanId,
+        cultureId,
+        trialTypeId,
+        transformedData
+      );
+      
+      return response;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['trialPlan', trialPlanId] });
-      enqueueSnackbar(`Добавлено участников: ${data.length}`, { variant: 'success' });
+      const participantsCount = data?.participants?.length || data?.length || 0;
+      enqueueSnackbar(`Добавлено участников: ${participantsCount}`, { variant: 'success' });
       handleClose();
     },
     onError: (error: any) => {

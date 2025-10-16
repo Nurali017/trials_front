@@ -484,8 +484,8 @@ const TrialPlanDetail: React.FC = () => {
               {/* Заголовок культуры */}
               <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Typography variant="h6">
-                    🌾 {culture.culture_name}
+                  <Typography variant="h5" fontWeight="bold">
+                    Культура {culture.culture_name}
                   </Typography>
                   <Chip label={culture.culture_group} color="info" size="small" />
                 </Stack>
@@ -517,6 +517,7 @@ const TrialPlanDetail: React.FC = () => {
                   const regionsWithPreds = getRegionsWithPredecessors(trialType.participants);
                   const maturityGroups = groupByMaturity(trialType.participants);
                   const hasParticipants = trialType.participants.length > 0;
+                  const hasTrials = trialType.participants.some(p => p.trials.length > 0);
                   
                   // Подсчитываем общее количество столбцов
                   const totalPredColumns = regionsWithPreds.reduce((sum, r) => sum + r.predecessors.length, 0);
@@ -526,8 +527,8 @@ const TrialPlanDetail: React.FC = () => {
                       {/* Заголовок типа испытания */}
                       <Box mb={2} display="flex" justifyContent="space-between" alignItems="center">
                         <Stack direction="row" spacing={2} alignItems="center">
-                          <Typography variant="h6" color="primary">
-                            📋 {trialType.trial_type_name}
+                          <Typography variant="h6" color="primary" fontWeight="bold">
+                            А) {trialType.trial_type_name.toLowerCase()}
                           </Typography>
                           <Chip label={`Сезон: ${trialType.season}`} color="secondary" size="small" />
                           <Chip label={`Участников: ${trialType.participants.length}`} variant="outlined" size="small" />
@@ -550,44 +551,128 @@ const TrialPlanDetail: React.FC = () => {
                         </Button>
                       </Box>
 
-                      {/* Таблица участников */}
+                      {/* Таблица участников в формате Excel */}
                       {!hasParticipants ? (
                         <Alert severity="info">
                           Участников пока нет. Нажмите "Добавить участников" выше.
                         </Alert>
+                      ) : !hasTrials ? (
+                        <Alert severity="warning">
+                          Участники добавлены, но региональные испытания не настроены. Нажмите "Добавить участников" для настройки испытаний по регионам.
+                        </Alert>
                       ) : (
                         <TableContainer component={Paper} variant="outlined">
-                          <Table size="small">
+                          <Table size="small" sx={{ borderCollapse: 'collapse' }}>
                             <TableHead>
-                              {/* Первая строка - Названия регионов */}
+                              {/* Заголовок таблицы */}
                               <TableRow>
-                                <TableCell rowSpan={3} sx={{ fontWeight: 'bold', minWidth: 50 }}>№</TableCell>
-                                <TableCell rowSpan={3} sx={{ fontWeight: 'bold', minWidth: 200 }}>Сорт</TableCell>
-                                <TableCell rowSpan={3} sx={{ fontWeight: 'bold', minWidth: 80 }}>Год</TableCell>
+                                <TableCell 
+                                  colSpan={totalPredColumns + 5} 
+                                  align="center" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    fontSize: '1rem',
+                                    bgcolor: 'primary.main', 
+                                    color: 'white',
+                                    border: '1px solid #ddd'
+                                  }}
+                                >
+                                  {trialType.trial_type_name} - {culture.culture_name}
+                                </TableCell>
+                              </TableRow>
+                              
+                              {/* Строка с заголовками колонок */}
+                              <TableRow>
+                                <TableCell 
+                                  rowSpan={3} 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    minWidth: 50, 
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100',
+                                    textAlign: 'center'
+                                  }}
+                                >
+                                  № п/п
+                                </TableCell>
+                                <TableCell 
+                                  rowSpan={3} 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    minWidth: 200, 
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100'
+                                  }}
+                                >
+                                  Сорт
+                                </TableCell>
+                                <TableCell 
+                                  rowSpan={3} 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    minWidth: 120, 
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100'
+                                  }}
+                                >
+                                  Год начало испытания по области
+                                </TableCell>
                                 
                                 {regionsWithPreds.map(region => (
                                   <TableCell 
                                     key={region.region_id} 
                                     colSpan={region.predecessors.length} 
                                     align="center" 
-                                    sx={{ fontWeight: 'bold', bgcolor: 'primary.light', color: 'white' }}
+                                    sx={{ 
+                                      fontWeight: 'bold', 
+                                      bgcolor: 'primary.light', 
+                                      color: 'white',
+                                      border: '1px solid #ddd'
+                                    }}
                                   >
                                     {region.region_name}
                                   </TableCell>
                                 ))}
                                 
-                                <TableCell rowSpan={3} align="center" sx={{ fontWeight: 'bold', minWidth: 80 }}>Всего</TableCell>
-                                <TableCell rowSpan={3} align="center" sx={{ fontWeight: 'bold', minWidth: 100 }}>Семена</TableCell>
+                                <TableCell 
+                                  rowSpan={3} 
+                                  align="center" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    minWidth: 100, 
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100'
+                                  }}
+                                >
+                                  Всего сортоопытов
+                                </TableCell>
+                                <TableCell 
+                                  rowSpan={3} 
+                                  align="center" 
+                                  sx={{ 
+                                    fontWeight: 'bold', 
+                                    minWidth: 120, 
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100'
+                                  }}
+                                >
+                                  Обеспеченность семенами
+                                </TableCell>
                               </TableRow>
                               
-                              {/* Вторая строка - Предшественники */}
+                              {/* Строка с предшественниками */}
                               <TableRow>
                                 {regionsWithPreds.map(region => 
                                   region.predecessors.map((pred, idx) => (
                                     <TableCell 
                                       key={`${region.region_id}-pred-${idx}`} 
                                       align="center" 
-                                      sx={{ fontSize: '0.75rem', fontWeight: 600, bgcolor: 'grey.100' }}
+                                      sx={{ 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 600, 
+                                        bgcolor: 'grey.200',
+                                        border: '1px solid #ddd'
+                                      }}
                                     >
                                       {pred}
                                     </TableCell>
@@ -595,14 +680,18 @@ const TrialPlanDetail: React.FC = () => {
                                 )}
                               </TableRow>
                               
-                              {/* Третья строка - Норма высева */}
+                              {/* Строка с коэффициентами высева */}
                               <TableRow>
                                 {regionsWithPreds.map(region => 
                                   region.predecessors.map((pred, idx) => (
                                     <TableCell 
                                       key={`${region.region_id}-rate-${idx}`} 
                                       align="center" 
-                                      sx={{ fontSize: '0.75rem', bgcolor: 'grey.50' }}
+                                      sx={{ 
+                                        fontSize: '0.75rem', 
+                                        bgcolor: 'grey.100',
+                                        border: '1px solid #ddd'
+                                      }}
                                     >
                                       {getCommonSeedingRate(trialType.participants, region.region_id)}
                                     </TableCell>
@@ -618,10 +707,12 @@ const TrialPlanDetail: React.FC = () => {
                                     <TableCell 
                                       colSpan={totalPredColumns + 5} 
                                       sx={{
-                                        bgcolor: 'grey.100', 
+                                        bgcolor: 'grey.300', 
                                         fontWeight: 'bold',
                                         fontSize: '0.875rem',
-                                        py: 0.5,
+                                        py: 1,
+                                        border: '1px solid #ddd',
+                                        textAlign: 'center'
                                       }}
                                     >
                                       {group}
@@ -630,10 +721,20 @@ const TrialPlanDetail: React.FC = () => {
 
                                   {/* Участники */}
                                   {participants.map((participant, idx) => {
+                                    const participantNumber = participants.findIndex(p => p.id === participant.id) + 1;
+                                    const globalNumber = maturityGroups
+                                      .slice(0, maturityGroups.findIndex(g => g.group === group))
+                                      .reduce((sum, g) => sum + g.participants.length, 0) + participantNumber;
+                                    
                                     return (
                                       <TableRow key={participant.id} hover>
-                                        <TableCell>{idx + 1}</TableCell>
-                                        <TableCell>
+                                        <TableCell 
+                                          align="center"
+                                          sx={{ border: '1px solid #ddd' }}
+                                        >
+                                          {globalNumber}
+                                        </TableCell>
+                                        <TableCell sx={{ border: '1px solid #ddd' }}>
                                           <Box display="flex" alignItems="center" gap={1}>
                                             <Typography variant="body2" fontWeight={500}>
                                               {getSortName(participant)}
@@ -641,17 +742,14 @@ const TrialPlanDetail: React.FC = () => {
                                             {isLoadingSortNames && !participant.sort_name && (
                                               <CircularProgress size={12} />
                                             )}
-                                            {participant.application && (
-                                              <Chip 
-                                                label={`Заявка #${participant.application}`} 
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{ ml: 1 }}
-                                              />
-                                            )}
                                           </Box>
                                         </TableCell>
-                                        <TableCell>{participant.application_submit_year || participant.year_started || '—'}</TableCell>
+                                        <TableCell 
+                                          align="center"
+                                          sx={{ border: '1px solid #ddd' }}
+                                        >
+                                          {participant.application_submit_year || participant.year_started || '—'}
+                                        </TableCell>
 
                                         {regionsWithPreds.map(region => 
                                           region.predecessors.map((pred, predIdx) => {
@@ -662,10 +760,14 @@ const TrialPlanDetail: React.FC = () => {
                                             });
                                             
                                             return (
-                                              <TableCell key={`${region.region_id}-${pred}-${predIdx}`} align="center">
+                                              <TableCell 
+                                                key={`${region.region_id}-${pred}-${predIdx}`} 
+                                                align="center"
+                                                sx={{ border: '1px solid #ddd' }}
+                                              >
                                                 {matchingTrial ? (
                                                   <Typography variant="body2" fontWeight={600}>
-                                                    Х {participant.statistical_group === 0 ? 'ст' : participant.statistical_group === 1 ? '' : 'б/ст'}
+                                                    Х {participant.statistical_group === 0 ? 'ст' : ''}
                                                   </Typography>
                                                 ) : (
                                                   <Typography variant="body2" color="text.disabled">—</Typography>
@@ -675,13 +777,51 @@ const TrialPlanDetail: React.FC = () => {
                                           })
                                         )}
 
-                                        <TableCell align="center">{participant.trials.length}</TableCell>
-                                        <TableCell align="center">{getSeedsIcon(participant.seeds_provision)}</TableCell>
+                                        <TableCell 
+                                          align="center"
+                                          sx={{ border: '1px solid #ddd' }}
+                                        >
+                                          {participant.trials.length}
+                                        </TableCell>
+                                        <TableCell 
+                                          align="center"
+                                          sx={{ border: '1px solid #ddd' }}
+                                        >
+                                          {participant.seeds_provision === 'provided' ? 'Предоставлен' : 
+                                           participant.seeds_provision === 'imported' ? 'Импорт' :
+                                           participant.seeds_provision === 'purchased' ? 'Куплен' : 'Не предоставлен'}
+                                        </TableCell>
                                       </TableRow>
                                     );
                                   })}
                                 </React.Fragment>
                               ))}
+                              
+                              {/* Итоговая строка */}
+                              <TableRow>
+                                <TableCell 
+                                  colSpan={totalPredColumns + 3}
+                                  align="right"
+                                  sx={{ 
+                                    fontWeight: 'bold',
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100'
+                                  }}
+                                >
+                                  Итого:
+                                </TableCell>
+                                <TableCell 
+                                  align="center"
+                                  sx={{ 
+                                    fontWeight: 'bold',
+                                    border: '1px solid #ddd',
+                                    bgcolor: 'grey.100'
+                                  }}
+                                >
+                                  {trialType.participants.reduce((sum, p) => sum + p.trials.length, 0)}
+                                </TableCell>
+                                <TableCell sx={{ border: '1px solid #ddd' }}></TableCell>
+                              </TableRow>
                             </TableBody>
                           </Table>
                         </TableContainer>
