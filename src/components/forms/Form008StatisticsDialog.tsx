@@ -25,6 +25,8 @@ import {
   Remove as RemoveIcon,
 } from '@mui/icons-material';
 import { StatisticalResultBadge } from '@/components/common/StatisticalResultBadge';
+import { AutoStatisticsCard } from './AutoStatisticsCard';
+import type { Form008StatisticsResponse } from '@/types/api.types';
 
 interface Statistics {
   accuracy_percent: number;
@@ -50,27 +52,29 @@ interface ParticipantStatisticalResult {
 interface Form008StatisticsDialogProps {
   open: boolean;
   onClose: () => void;
-  data: {
-    success: boolean;
-    message: string;
-    trial_status: string;
-    statistics?: Statistics;
-    min_max?: MinMax;
-    participants_statistical_results?: ParticipantStatisticalResult[];
-  } | null;
+  data: Form008StatisticsResponse | null;
+  onUseAutoCalculation?: (values: {
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+  }) => void;
 }
 
 export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = ({
   open,
   onClose,
   data,
+  onUseAutoCalculation,
 }) => {
   if (!data || !open) return null;
 
-  const { statistics, min_max, participants_statistical_results } = data;
+  const { statistics, manual_statistics, auto_statistics, min_max, comparison } = data;
+
+  // Используем manual_statistics если есть, иначе statistics
+  const currentStatistics = manual_statistics || statistics;
 
   // Защита от undefined значений
-  if (!statistics) return null;
+  if (!currentStatistics) return null;
 
   // Определение цвета для точности опыта
   const getAccuracyColor = (percent: number) => {
@@ -98,7 +102,7 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
           </Alert>
 
           {/* Statistics */}
-          {statistics && (
+          {currentStatistics && (
             <Box mb={3}>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Статистические показатели
@@ -113,20 +117,20 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
                       variant="h4"
                       fontWeight="bold"
                       color={
-                        statistics.accuracy_percent != null
-                          ? getAccuracyColor(statistics.accuracy_percent)
+                        currentStatistics.accuracy_percent != null
+                          ? getAccuracyColor(currentStatistics.accuracy_percent)
                           : 'text.primary'
                       }
                     >
-                      {statistics.accuracy_percent != null
-                        ? `${statistics.accuracy_percent.toFixed(1)}%`
+                      {currentStatistics.accuracy_percent != null
+                        ? `${currentStatistics.accuracy_percent.toFixed(1)}%`
                         : '-'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {statistics.accuracy_percent != null
-                        ? statistics.accuracy_percent <= 3
+                      {currentStatistics.accuracy_percent != null
+                        ? currentStatistics.accuracy_percent <= 3
                           ? 'Отличная точность'
-                          : statistics.accuracy_percent <= 5
+                          : currentStatistics.accuracy_percent <= 5
                           ? 'Приемлемая точность'
                           : 'Низкая точность'
                         : 'Нет данных'}
@@ -140,7 +144,7 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
                       НСР (наименьшая существенная разница)
                     </Typography>
                     <Typography variant="h4" fontWeight="bold" color="primary">
-                      {statistics.lsd != null ? statistics.lsd.toFixed(2) : '-'}
+                      {currentStatistics.lsd_095 != null ? currentStatistics.lsd_095.toFixed(2) : '-'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       ц/га
@@ -154,7 +158,7 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
                       Ошибка средней (E)
                     </Typography>
                     <Typography variant="h4" fontWeight="bold" color="info.main">
-                      {statistics.error_mean != null ? statistics.error_mean.toFixed(2) : '-'}
+                      {currentStatistics.error_mean != null ? currentStatistics.error_mean.toFixed(2) : '-'}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       ц/га
@@ -162,6 +166,16 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
                   </Paper>
                 </Grid>
               </Grid>
+            </Box>
+          )}
+
+          {/* Auto Statistics */}
+          {auto_statistics && (
+            <Box mb={3}>
+              <AutoStatisticsCard
+                autoStatistics={auto_statistics}
+                onUseAutoCalculation={onUseAutoCalculation}
+              />
             </Box>
           )}
 
@@ -205,7 +219,7 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
           )}
 
           {/* Participants Statistical Results */}
-          {participants_statistical_results && participants_statistical_results.length > 0 && (
+          {comparison && comparison.length > 0 && (
             <Box>
               <Typography variant="h6" fontWeight="bold" gutterBottom>
                 Статистическая оценка участников
@@ -221,11 +235,11 @@ export const Form008StatisticsDialog: React.FC<Form008StatisticsDialogProps> = (
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {participants_statistical_results
-                      .sort((a, b) => a.participant_number - b.participant_number)
+                    {comparison
+                      .sort((a, b) => a.participant_id - b.participant_id)
                       .map((participant) => (
-                        <TableRow key={participant.participant_number} hover>
-                          <TableCell>{participant.participant_number}</TableCell>
+                        <TableRow key={participant.participant_id} hover>
+                          <TableCell>{participant.participant_id}</TableCell>
                           <TableCell>
                             <Typography variant="body2" fontWeight={500}>
                               {participant.sort_name}

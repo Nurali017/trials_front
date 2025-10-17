@@ -12,6 +12,15 @@ import type {
   MarkSentToLabRequest,
   LaboratoryBulkEntryRequest,
   LaboratoryCompleteRequest,
+  Form008Data,
+  Form008SaveRequest,
+  Form008SaveResponse,
+  Form008UpdateConditionsRequest,
+  AddIndicatorsRequest,
+  RemoveIndicatorsRequest,
+  IndicatorsByCultureResponse,
+  Form008StatisticsResponse,
+  StatisticsPreviewRequest,
 } from '@/types/api.types';
 
 export const trialsService = {
@@ -115,20 +124,87 @@ export const trialsService = {
 
   // Получить структуру формы 008
   getForm008: async (trialId: number) => {
-    const { data } = await apiClient.get(`/trials/${trialId}/form008/`);
+    const { data } = await apiClient.get<Form008Data>(`/trials/${trialId}/form008/`);
     return data;
   },
 
   // Сохранить форму 008
-  saveForm008: async (trialId: number, payload: {
-    is_final: boolean;
-    harvest_date?: string;
-    participants: Array<{
-      participant_id: number;
-      results: Record<string, number | null>;
-    }>;
-  }) => {
-    const { data } = await apiClient.post(`/trials/${trialId}/form008/bulk-save/`, payload);
+  saveForm008: async (trialId: number, payload: Form008SaveRequest): Promise<Form008SaveResponse> => {
+    const { data } = await apiClient.post<Form008SaveResponse>(`/trials/${trialId}/form008/bulk-save/`, payload);
+    return data;
+  },
+
+  // Частичное сохранение урожайности (без закрытия формы)
+  saveForm008Partial: async (trialId: number, payload: Partial<Form008SaveRequest>): Promise<Form008SaveResponse> => {
+    const { data } = await apiClient.post<Form008SaveResponse>(`/trials/${trialId}/form008/bulk-save/`, {
+      is_final: false,
+      ...payload,
+    });
+    return data;
+  },
+
+  // Сохранить только урожайность
+  saveForm008Yield: async (trialId: number, participants: Form008SaveRequest['participants'], statistics?: Form008SaveRequest['statistics']): Promise<Form008SaveResponse> => {
+    const { data } = await apiClient.post<Form008SaveResponse>(`/trials/${trialId}/form008/bulk-save/`, {
+      is_final: false,
+      participants,
+      statistics,
+    });
+    return data;
+  },
+
+  // Сохранить только статистику
+  saveForm008Statistics: async (trialId: number, statistics: Form008SaveRequest['statistics']): Promise<Form008SaveResponse> => {
+    const { data } = await apiClient.post<Form008SaveResponse>(`/trials/${trialId}/form008/bulk-save/`, {
+      is_final: false,
+      statistics,
+    });
+    return data;
+  },
+
+  // Получить статистику формы 008 (включая авторасчет)
+  getForm008Statistics: async (trialId: number) => {
+    const { data } = await apiClient.get(`/trials/${trialId}/form008/statistics/`);
+    return data;
+  },
+
+  // Обновить условия испытания
+  updateTrialConditions: async (trialId: number, payload: Form008UpdateConditionsRequest) => {
+    const { data } = await apiClient.patch(`/trials/${trialId}/form008/update-conditions/`, payload);
+    return data;
+  },
+
+  // ============ УПРАВЛЕНИЕ ПОКАЗАТЕЛЯМИ ============
+
+  // Получить показатели по культуре
+  getIndicatorsByCulture: async (cultureId: number): Promise<IndicatorsByCultureResponse> => {
+    const { data } = await apiClient.get<IndicatorsByCultureResponse>(`/indicators/by-culture/${cultureId}/`);
+    return data;
+  },
+
+  // Добавить показатели к испытанию
+  addIndicators: async (trialId: number, payload: AddIndicatorsRequest) => {
+    const { data } = await apiClient.post(`/trials/${trialId}/add-indicators/`, payload);
+    return data;
+  },
+
+  // Удалить показатели из испытания
+  removeIndicators: async (trialId: number, payload: RemoveIndicatorsRequest) => {
+    const { data } = await apiClient.delete(`/trials/${trialId}/remove-indicators/`, { data: payload });
+    return data;
+  },
+
+  // ============ СТАТИСТИКА И РАСЧЕТЫ ============
+
+  // Получить статистику испытания
+  getForm008Statistics: async (trialId: number) => {
+    const { data } = await apiClient.get<Form008StatisticsResponse>(`/trials/${trialId}/form008/statistics/`);
+    return data;
+  },
+
+  // Предварительный просмотр расчетов без сохранения
+  previewStatistics: async (trialId: number, payload: StatisticsPreviewRequest) => {
+    const { data } = await apiClient.post<Form008StatisticsResponse>(`/trials/${trialId}/form008/preview-statistics/`, payload);
     return data;
   },
 };
@@ -171,5 +247,14 @@ export const trialParticipantsService = {
   // Delete participant
   delete: async (id: number) => {
     await apiClient.delete(`/trial-participants/${id}/`);
+  },
+};
+
+// Form008 Validation Rules
+export const form008ValidationService = {
+  // Get validation rules for Form008 indicators
+  getValidationRules: async (trialId: number) => {
+    const { data } = await apiClient.get(`/trials/${trialId}/form008.indicators.validation_rules/`);
+    return data;
   },
 };

@@ -100,6 +100,18 @@ export const TrialDetail: React.FC = () => {
               Заполнить форму 008
             </Button>
           )}
+          
+          {/* Кнопка для просмотра формы 008 после заполнения */}
+          {['completed_008', 'lab_sample_sent', 'lab_completed', 'completed', 'approved', 'continue'].includes(trial.status) && (
+            <Button
+              startIcon={<Form008Icon />}
+              variant="outlined"
+              color="primary"
+              onClick={() => navigate(`/trials/${id}/form008`)}
+            >
+              Просмотр формы 008
+            </Button>
+          )}
 
           {/* Laboratory Workflow Buttons */}
           {trial.status === 'completed_008' && !trial.laboratory_code && (
@@ -260,36 +272,6 @@ export const TrialDetail: React.FC = () => {
             </Grid>
           )}
 
-          <Grid item xs={12}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Прогресс сбора результатов
-            </Typography>
-            <Box display="flex" alignItems="center" gap={2}>
-              <Box flexGrow={1}>
-                <Box
-                  sx={{
-                    width: '100%',
-                    height: 10,
-                    bgcolor: 'grey.200',
-                    borderRadius: 1,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <Box
-                    sx={{
-                      width: `${progress}%`,
-                      height: '100%',
-                      bgcolor: 'primary.main',
-                      transition: 'width 0.3s',
-                    }}
-                  />
-                </Box>
-              </Box>
-              <Typography variant="body2" fontWeight={500}>
-                {trial.results_count} / {trial.indicators_data?.length || 0}
-              </Typography>
-            </Box>
-          </Grid>
         </Grid>
       </Paper>
 
@@ -384,96 +366,38 @@ export const TrialDetail: React.FC = () => {
             Статистика опыта
           </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={6} sm={3}>
-              <Typography variant="body2" color="text.secondary">
-                Sx (стандартное отклонение)
-              </Typography>
-              <Typography variant="h6">{trial.trial_statistics.sx.toFixed(2)}</Typography>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Typography variant="body2" color="text.secondary">
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
                 Точность опыта (P%)
               </Typography>
-              <Typography variant="h6" color={
+              <Typography variant="h5" fontWeight="bold" color={
                 trial.trial_statistics.accuracy_percent <= 3 ? 'success.main' : 
                 trial.trial_statistics.accuracy_percent <= 5 ? 'warning.main' : 
                 'error.main'
               }>
-                {trial.trial_statistics.accuracy_percent.toFixed(1)}%
+                {trial.trial_statistics.accuracy_percent?.toFixed(2) || '—'}%
               </Typography>
             </Grid>
-            <Grid item xs={6} sm={3}>
-              <Typography variant="body2" color="text.secondary">
-                НСР (наименьшая существенная разница)
-              </Typography>
-              <Typography variant="h6">{trial.trial_statistics.lsd.toFixed(2)}</Typography>
-            </Grid>
-            <Grid item xs={6} sm={3}>
-              <Typography variant="body2" color="text.secondary">
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
                 Ошибка средней
               </Typography>
-              <Typography variant="h6">{trial.trial_statistics.error_mean.toFixed(2)}</Typography>
+              <Typography variant="h5" fontWeight="bold">
+                {trial.trial_statistics.error_mean?.toFixed(2) || '—'}
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                НСР₀.₀₅ (наименьшая существенная разница)
+              </Typography>
+              <Typography variant="h5" fontWeight="bold">
+                {trial.trial_statistics.lsd_095?.toFixed(2) || '—'}
+              </Typography>
             </Grid>
           </Grid>
         </Paper>
       )}
 
-      {/* Completion Status */}
-      {trial.completion_status && (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" fontWeight="bold" gutterBottom>
-            Заполненность данных
-          </Typography>
-          <Box display="flex" alignItems="center" gap={2} mb={2}>
-            <Box flexGrow={1}>
-              <Box
-                sx={{
-                  width: '100%',
-                  height: 12,
-                  bgcolor: 'grey.200',
-                  borderRadius: 1,
-                  overflow: 'hidden',
-                }}
-              >
-                <Box
-                  sx={{
-                    width: `${trial.completion_status.filled_percent}%`,
-                    height: '100%',
-                    bgcolor: trial.completion_status.is_complete ? 'success.main' : 'primary.main',
-                    transition: 'width 0.3s',
-                  }}
-                />
-              </Box>
-            </Box>
-            <Chip 
-              label={`${trial.completion_status.filled_percent.toFixed(1)}%`}
-              color={trial.completion_status.is_complete ? 'success' : 'warning'}
-            />
-          </Box>
-          
-          {!trial.completion_status.is_complete && trial.completion_status.missing_data.length > 0 && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Не заполнено ({trial.completion_status.missing_data.length}):
-              </Typography>
-              <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                {trial.completion_status.missing_data.slice(0, 5).map((item, idx) => (
-                  <li key={idx}>
-                    <Typography variant="body2">{item}</Typography>
-                  </li>
-                ))}
-                {trial.completion_status.missing_data.length > 5 && (
-                  <li>
-                    <Typography variant="body2" color="text.secondary">
-                      ... и еще {trial.completion_status.missing_data.length - 5}
-                    </Typography>
-                  </li>
-                )}
-              </Box>
-            </Alert>
-          )}
-        </Paper>
-      )}
 
       {/* Decision */}
       {trial.decision && (

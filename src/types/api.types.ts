@@ -52,9 +52,18 @@ export interface Indicator {
   category: IndicatorCategory;
   is_quality: boolean;
   is_universal: boolean;
+  is_auto_calculated?: boolean;
   sort_order: number;
   cultures?: number[];
   cultures_data?: Culture[];
+  validation_rules?: {
+    min_value?: number;
+    max_value?: number;
+    precision?: number;
+    required?: boolean;
+    type?: string;
+    [key: string]: any;
+  };
 }
 
 export interface Oblast {
@@ -149,10 +158,10 @@ export interface TrialType {
 }
 
 export type StatisticalGroup = 0 | 1; // 0 = стандарт, 1 = испытываемый
-export type StatisticalResult = -1 | 0 | 1 | null; // -1 = ниже, 0 = норма, +1 = выше
+export type StatisticalResult = number | null; // Автоматически рассчитанный код группы (+3, -2, 0, +1...)
 
 export type AgroBackground = 'favorable' | 'moderate' | 'unfavorable';
-export type GrowingConditions = 'rainfed' | 'irrigated' | 'mixed';
+export type GrowingConditions = 'rainfed' | 'irrigated' | 'drained' | 'mixed';
 export type CultivationTechnology = 'traditional' | 'minimal' | 'no_till' | 'organic';
 export type GrowingMethod = 'soil_traditional' | 'hydroponics' | 'greenhouse' | 'container' | 'raised_beds';
 export type HarvestTiming = 'very_early' | 'early' | 'medium_early' | 'medium' | 'medium_late' | 'late' | 'very_late';
@@ -164,6 +173,8 @@ export interface TrialParticipant {
   sort_record_data: SortRecord;
   statistical_group: StatisticalGroup;
   statistical_result: StatisticalResult;
+  statistical_result_display?: string; // Человекочитаемое описание (например: "Превышение на 3 НСР (код +3)")
+  maturity_group_code?: string; // Организационный код группы спелости (1, 2, 3...)
   participant_number: number;
   application?: number;
   application_number?: string;
@@ -266,6 +277,10 @@ export interface TrialResult {
   plot_4?: number;
   value?: number; // Среднее или единичное значение
   text_value?: string;
+  
+  // Контроль качества
+  is_rejected?: boolean; // Отклонен ли результат
+  is_restored?: boolean; // Восстановлен ли результат
   
   measurement_date: string;
   notes?: string;
@@ -908,4 +923,204 @@ export interface StatisticsResponse {
   statistics: AnnualTableStatistics;
   progress_percentage: number;
   is_complete: boolean;
+}
+
+// ============ FORM 008 TYPES ============
+
+export interface Form008Warning {
+  level: 'error' | 'warning' | 'info';
+  message: string;
+}
+
+export interface Form008Statistics {
+  lsd_095: number;
+  error_mean: number;
+  accuracy_percent: number;
+  has_data: boolean;
+}
+
+export interface Form008Participant {
+  id: number;
+  participant_number: number;
+  sort_name: string;
+  statistical_group: StatisticalGroup;
+  is_standard: boolean;
+  maturity_group_code?: string;
+  statistical_result?: number;
+  statistical_result_display?: string;
+  current_results: Record<string, Form008Result>;
+}
+
+export interface Form008Result {
+  value?: number;
+  plot_1?: number;
+  plot_2?: number;
+  plot_3?: number;
+  plot_4?: number;
+  is_rejected?: boolean;
+  is_restored?: boolean;
+}
+
+export interface Form008Trial {
+  id: number;
+  culture_name: string;
+  region_name: string;
+  harvest_date: string | null;
+  status: string;
+  // Организационная информация
+  maturity_group_code?: string;
+  maturity_group_name?: string;
+  trial_code?: string;
+  culture_code?: string;
+  culture_id?: number;
+  predecessor_code?: string;
+  lsd_095?: number;
+  error_mean?: number;
+  accuracy_percent?: number;
+  // Условия испытания
+  agro_background?: AgroBackground;
+  growing_conditions?: GrowingConditions;
+  cultivation_technology?: CultivationTechnology;
+  growing_method?: GrowingMethod;
+  harvest_timing?: HarvestTiming;
+  additional_info?: string;
+}
+
+export interface Form008Data {
+  trial: Form008Trial;
+  statistics?: Form008Statistics;
+  participants: Form008Participant[];
+  indicators: Indicator[];
+  warnings?: Form008Warning[];
+  auto_statistics?: AutoStatistics;
+  standard?: StandardParticipant;
+  comparison?: ComparisonResult[];
+  min_max?: MinMaxValues;
+}
+
+export interface Form008SaveRequest {
+  is_final: boolean;
+  harvest_date?: string;
+  statistics?: {
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+    use_auto_calculation?: boolean;
+  };
+  participants: Array<{
+    participant_id: number;
+    results: Record<string, Form008Result>;
+  }>;
+}
+
+export interface Form008SaveResponse {
+  success: boolean;
+  is_final: boolean;
+  statistics?: TrialStatistics;
+  participants_codes?: Array<{
+    participant_id: number;
+    statistical_result: number;
+    statistical_result_display: string;
+  }>;
+}
+
+export interface Form008UpdateConditionsRequest {
+  agro_background?: AgroBackground;
+  growing_conditions?: GrowingConditions;
+  cultivation_technology?: CultivationTechnology;
+  growing_method?: GrowingMethod;
+  harvest_timing?: HarvestTiming;
+  harvest_date?: string;
+  additional_info?: string;
+}
+
+// ============ INDICATORS MANAGEMENT TYPES ============
+
+export interface AddIndicatorsRequest {
+  by_culture?: boolean;
+  include_recommended?: boolean;
+  indicator_ids?: number[];
+}
+
+export interface RemoveIndicatorsRequest {
+  indicator_ids: number[];
+}
+
+export interface IndicatorsByCultureResponse {
+  culture_id: number;
+  culture_name: string;
+  required_indicators: Indicator[];
+  recommended_indicators: Indicator[];
+  quality_indicators: Indicator[];
+}
+
+// ============ STATISTICS AND CALCULATIONS TYPES ============
+
+export interface TrialStatistics {
+  lsd_095?: number;
+  error_mean?: number;
+  accuracy_percent?: number;
+  replication_count?: number;
+  has_data?: boolean;
+  note?: string;
+}
+
+export interface StandardParticipant {
+  participant_id: number;
+  sort_name: string;
+  yield?: number;
+}
+
+export interface ComparisonResult {
+  participant_id: number;
+  sort_name: string;
+  yield?: number;
+  statistical_result?: number;
+  statistical_result_display?: string;
+  difference_from_standard?: number;
+  percent_difference?: number;
+}
+
+export interface MinMaxValues {
+  [indicatorCode: string]: {
+    min: number;
+    max: number;
+  };
+}
+
+export interface AutoStatistics {
+  auto_lsd_095?: number;
+  auto_error_mean?: number;
+  auto_accuracy_percent?: number;
+  replication_count?: number;
+  participants_count?: number;
+  grand_mean?: number;
+  note?: string;
+  manual_required?: boolean;
+  warning?: string;
+}
+
+export interface Form008StatisticsResponse {
+  trial_id: number;
+  has_data: boolean;
+  has_manual_data?: boolean;
+  has_auto_data?: boolean;
+  statistics?: TrialStatistics;
+  manual_statistics?: TrialStatistics;
+  auto_statistics?: AutoStatistics;
+  standard?: StandardParticipant;
+  comparison?: ComparisonResult[];
+  min_max?: MinMaxValues;
+}
+
+export interface StatisticsPreviewRequest {
+  statistics: {
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+  };
+  participants: Array<{
+    participant_id: number;
+    results: Record<string, number>;
+  }>;
 }

@@ -1,11 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { trialsService } from '@/api';
+import { trialsService, form008ValidationService } from '@/api/trials';
 import type { 
   MakeDecisionRequest, 
   CreateSortRequest,
   MarkSentToLabRequest,
   LaboratoryBulkEntryRequest,
   LaboratoryCompleteRequest,
+  Form008SaveRequest,
+  Form008UpdateConditionsRequest,
+  StatisticsPreviewRequest,
+  AddIndicatorsRequest,
+  RemoveIndicatorsRequest,
 } from '@/types/api.types';
 import { applicationKeys } from './useApplications';
 
@@ -165,21 +170,118 @@ export const useForm008 = (trialId: number, enabled = true) => {
 
 // Save form 008 mutation
 export const useSaveForm008 = () => {
-  const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: ({ trialId, payload }: {
       trialId: number;
-      payload: {
-        is_final: boolean;
-        harvest_date?: string;
-        participants: Array<{
-          participant_id: number;
-          results: Record<string, number | null>;
-        }>;
-      };
+      payload: Form008SaveRequest;
     }) => trialsService.saveForm008(trialId, payload),
     // Не делаем автоматическую инвалидацию после каждого сохранения,
     // чтобы не сбрасывать локальное состояние формы при автосохранении
   });
 };
+
+// Частичное сохранение формы 008
+export const useSaveForm008Partial = () => {
+  return useMutation({
+    mutationFn: ({ trialId, payload }: {
+      trialId: number;
+      payload: Partial<Form008SaveRequest>;
+    }) => trialsService.saveForm008Partial(trialId, payload),
+  });
+};
+
+// Сохранение только урожайности
+export const useSaveForm008Yield = () => {
+  return useMutation({
+    mutationFn: ({ trialId, participants, statistics }: {
+      trialId: number;
+      participants: Form008SaveRequest['participants'];
+      statistics?: Form008SaveRequest['statistics'];
+    }) => trialsService.saveForm008Yield(trialId, participants, statistics),
+  });
+};
+
+// Сохранение только статистики
+export const useSaveForm008Statistics = () => {
+  return useMutation({
+    mutationFn: ({ trialId, statistics }: {
+      trialId: number;
+      statistics: Form008SaveRequest['statistics'];
+    }) => trialsService.saveForm008Statistics(trialId, statistics),
+  });
+};
+
+// Get form 008 statistics (включая авторасчет)
+export const useForm008Statistics = (trialId: number, enabled = true) => {
+  return useQuery({
+    queryKey: [...trialKeys.detail(trialId), 'form008', 'statistics'],
+    queryFn: () => trialsService.getForm008Statistics(trialId),
+    enabled: enabled && !!trialId,
+  });
+};
+
+// Update trial conditions mutation
+export const useUpdateTrialConditions = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ trialId, payload }: {
+      trialId: number;
+      payload: Form008UpdateConditionsRequest;
+    }) => trialsService.updateTrialConditions(trialId, payload),
+    onSuccess: (_, { trialId }) => {
+      queryClient.invalidateQueries({ queryKey: trialKeys.detail(trialId) });
+      queryClient.invalidateQueries({ queryKey: [...trialKeys.detail(trialId), 'form008'] });
+    },
+  });
+};
+
+// ============ СТАТИСТИКА И РАСЧЕТЫ ============
+
+export const usePreviewStatistics = () => {
+  return useMutation({
+    mutationFn: ({ trialId, payload }: { trialId: number; payload: StatisticsPreviewRequest; }) => trialsService.previewStatistics(trialId, payload),
+  });
+};
+
+// ============ УПРАВЛЕНИЕ ПОКАЗАТЕЛЯМИ ============
+
+export const useGetIndicatorsByCulture = (cultureId: number, options?: { enabled?: boolean }) => {
+  return useQuery({
+    queryKey: ['indicators', 'by-culture', cultureId],
+    queryFn: () => trialsService.getIndicatorsByCulture(cultureId),
+    enabled: (options?.enabled ?? true) && !!cultureId,
+  });
+};
+
+export const useAddIndicators = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ trialId, payload }: { trialId: number; payload: AddIndicatorsRequest; }) => trialsService.addIndicators(trialId, payload),
+    onSuccess: (_, { trialId }) => {
+      queryClient.invalidateQueries({ queryKey: trialKeys.detail(trialId) });
+      queryClient.invalidateQueries({ queryKey: [...trialKeys.detail(trialId), 'form008'] });
+    },
+  });
+};
+
+export const useRemoveIndicators = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ trialId, payload }: { trialId: number; payload: RemoveIndicatorsRequest; }) => trialsService.removeIndicators(trialId, payload),
+    onSuccess: (_, { trialId }) => {
+      queryClient.invalidateQueries({ queryKey: trialKeys.detail(trialId) });
+      queryClient.invalidateQueries({ queryKey: [...trialKeys.detail(trialId), 'form008'] });
+    },
+  });
+};
+
+// Hook for Form008 validation rules
+export const useForm008ValidationRules = (trialId: number, options?: { enabled?: boolean }) => {
+  return useQuery({
+    queryKey: ['form008', 'validation-rules', trialId],
+    queryFn: () => form008ValidationService.getValidationRules(trialId),
+    enabled: (options?.enabled ?? true) && !!trialId,
+  });
+};
+
