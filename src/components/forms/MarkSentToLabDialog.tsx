@@ -10,7 +10,6 @@ import {
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { useMarkSentToLab } from '@/hooks/useTrials';
-import { getTodayISO } from '@/utils/dateHelpers';
 import type { Trial } from '@/types/api.types';
 
 interface Props {
@@ -26,13 +25,18 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
 
   const [laboratoryCode, setLaboratoryCode] = useState('');
   const [sampleWeightKg, setSampleWeightKg] = useState<number>(2.0);
-  const [sentDate, setSentDate] = useState(getTodayISO());
+  const [sampleSource, setSampleSource] = useState('');
 
   const participantsCount = trial.participants_data?.length || 0;
 
   const handleSubmit = () => {
     if (!laboratoryCode) {
       enqueueSnackbar('Укажите код лаборатории', { variant: 'warning' });
+      return;
+    }
+
+    if (!sampleSource) {
+      enqueueSnackbar('Укажите источник образца', { variant: 'warning' });
       return;
     }
 
@@ -47,7 +51,7 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
         payload: {
           laboratory_code: laboratoryCode,
           sample_weight_kg: sampleWeightKg,
-          sent_date: sentDate,
+          sample_source: sampleSource,
         },
       },
       {
@@ -61,7 +65,7 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
           // Reset form
           setLaboratoryCode('');
           setSampleWeightKg(2.0);
-          setSentDate(getTodayISO());
+          setSampleSource('');
         },
         onError: (error: any) => {
           enqueueSnackbar(`Ошибка: ${error.message}`, { variant: 'error' });
@@ -86,7 +90,7 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
             />
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid item xs={12} sm={6}>
             <TextField
               label="Код лаборатории *"
               fullWidth
@@ -109,16 +113,17 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
             />
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid item xs={12}>
             <TextField
-              label="Дата отправки *"
-              type="date"
+              label="Источник образца *"
               fullWidth
-              value={sentDate}
-              onChange={(e) => setSentDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              value={sampleSource}
+              onChange={(e) => setSampleSource(e.target.value)}
+              placeholder="Поле №1, делянка 5"
+              helperText="Место отбора образца (поле, делянка, участок)"
             />
           </Grid>
+
         </Grid>
       </DialogContent>
       <DialogActions>

@@ -43,7 +43,7 @@ export const TrialDetail: React.FC = () => {
   
   const [labDialogOpen, setLabDialogOpen] = useState(false);
   const [labResultsDialogOpen, setLabResultsDialogOpen] = useState(false);
-  const [selectedParticipantForLab, setSelectedParticipantForLab] = useState<TrialParticipant | null>(null);
+  const [selectedParticipantForLab, setSelectedParticipantForLab] = useState<TrialParticipant | undefined>(undefined);
 
   const { data: trial, isLoading, refetch } = useTrial(Number(id));
   const { mutate: completeLab } = useLaboratoryComplete();
@@ -126,39 +126,26 @@ export const TrialDetail: React.FC = () => {
           )}
 
           {trial.status === 'lab_sample_sent' && trial.participants_data && (
-            <>
-              <Button
-                startIcon={<LabIcon />}
-                variant="outlined"
-                color="info"
-                onClick={() => {
-                  setSelectedParticipantForLab(trial.participants_data![0]);
-                  setLabResultsDialogOpen(true);
-                }}
-              >
-                Внести лабораторные результаты
-              </Button>
-              <Button
-                variant="outlined"
-                color="success"
-                onClick={() => {
-                  completeLab(
-                    { id: trial.id, payload: { completed_date: new Date().toISOString().split('T')[0] } },
-                    {
-                      onSuccess: () => {
-                        enqueueSnackbar('Лабораторные анализы завершены', { variant: 'success' });
-                        refetch();
-                      },
-                      onError: (error: any) => {
-                        enqueueSnackbar(`Ошибка: ${error.message}`, { variant: 'error' });
-                      },
-                    }
-                  );
-                }}
-              >
-                Завершить лабораторные анализы
-              </Button>
-            </>
+            <Button
+              variant="outlined"
+              color="success"
+              onClick={() => {
+                completeLab(
+                  { id: trial.id, payload: { completed_date: new Date().toISOString().split('T')[0] } },
+                  {
+                    onSuccess: () => {
+                      enqueueSnackbar('Лабораторные анализы завершены', { variant: 'success' });
+                      refetch();
+                    },
+                    onError: (error: any) => {
+                      enqueueSnackbar(`Ошибка: ${error.message}`, { variant: 'error' });
+                    },
+                  }
+                );
+              }}
+            >
+              Завершить лабораторные анализы
+            </Button>
           )}
 
           {trial.status === 'lab_completed' && (
@@ -310,6 +297,9 @@ export const TrialDetail: React.FC = () => {
                   <TableCell>Группа</TableCell>
                   <TableCell>Заявка</TableCell>
                   <TableCell>Статистическая оценка</TableCell>
+                  {trial.status === 'lab_sample_sent' && (
+                    <TableCell align="center">Лабораторные результаты</TableCell>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -351,6 +341,22 @@ export const TrialDetail: React.FC = () => {
                       <TableCell>
                         <StatisticalResultBadge result={participant.statistical_result} />
                       </TableCell>
+                      {trial.status === 'lab_sample_sent' && (
+                        <TableCell align="center">
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="info"
+                            startIcon={<LabIcon />}
+                            onClick={() => {
+                              setSelectedParticipantForLab(participant);
+                              setLabResultsDialogOpen(true);
+                            }}
+                          >
+                            Внести
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
               </TableBody>
@@ -464,7 +470,7 @@ export const TrialDetail: React.FC = () => {
           open={labResultsDialogOpen}
           onClose={() => {
             setLabResultsDialogOpen(false);
-            setSelectedParticipantForLab(null);
+            setSelectedParticipantForLab(undefined);
           }}
           trial={trial}
           participant={selectedParticipantForLab}

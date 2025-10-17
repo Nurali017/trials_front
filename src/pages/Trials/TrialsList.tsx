@@ -231,13 +231,11 @@ export const TrialsList: React.FC = () => {
                     <TableCell>{trial.region_name}</TableCell>
                     <TableCell>
                       <Typography variant="body2">
-                        {formatDate(trial.start_date)}
+                        {trial.year || new Date(trial.start_date).getFullYear()}
                       </Typography>
-                      {trial.end_date && (
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDate(trial.end_date)}
-                        </Typography>
-                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {formatDate(trial.start_date)} - {trial.end_date ? formatDate(trial.end_date) : 'н.в.'}
+                      </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip

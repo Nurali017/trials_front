@@ -10,9 +10,10 @@ interface StatisticalResultBadgeProps {
 
 /**
  * Компонент для отображения статистической оценки участника испытания
- * -1 = существенно ниже стандарта (❌ --)
- *  0 = несущественная разница (➖ 0)
- * +1 = существенно выше стандарта (✅ ++)
+ * Положительные значения = существенно выше стандарта (✅ +N)
+ * 0 = несущественная разница (➖ 0)
+ * Отрицательные значения = существенно ниже стандарта (❌ -N)
+ * null = результат еще не рассчитан (⏳)
  */
 export const StatisticalResultBadge: React.FC<StatisticalResultBadgeProps> = ({ 
   result, 
@@ -32,32 +33,54 @@ export const StatisticalResultBadge: React.FC<StatisticalResultBadgeProps> = ({
     );
   }
 
-  const config = {
-    1: { 
-      color: 'success' as const, 
-      label: 'Существенно выше', 
-      icon: '✅ ++',
-      shortLabel: '++',
-      description: 'Урожайность значительно превышает стандарт (разница больше НСР)'
-    },
-    0: { 
-      color: 'warning' as const, 
-      label: 'В пределах нормы', 
-      icon: '➖ 0',
-      shortLabel: '0',
-      description: 'Разница со стандартом статистически несущественна (в пределах НСР)'
-    },
-    '-1': { 
-      color: 'error' as const, 
-      label: 'Существенно ниже', 
-      icon: '❌ --',
-      shortLabel: '--',
-      description: 'Урожайность значительно ниже стандарта (разница больше НСР)'
+  // Функция для определения конфигурации на основе числового значения
+  const getConfigForResult = (resultValue: number) => {
+    if (resultValue > 0) {
+      return {
+        color: 'success' as const,
+        label: `Существенно выше (+${resultValue})`,
+        icon: `✅ +${resultValue}`,
+        shortLabel: `+${resultValue}`,
+        description: `Урожайность превышает стандарт на ${resultValue} НСР`
+      };
+    } else if (resultValue < 0) {
+      return {
+        color: 'error' as const,
+        label: `Существенно ниже (${resultValue})`,
+        icon: `❌ ${resultValue}`,
+        shortLabel: `${resultValue}`,
+        description: `Урожайность ниже стандарта на ${Math.abs(resultValue)} НСР`
+      };
+    } else {
+      return {
+        color: 'warning' as const,
+        label: 'В пределах нормы (0)',
+        icon: '➖ 0',
+        shortLabel: '0',
+        description: 'Разница со стандартом статистически несущественна (в пределах НСР)'
+      };
     }
   };
 
-  const resultKey = result as 1 | 0 | -1;
-  const { color, label, icon, shortLabel, description } = config[resultKey];
+  // Преобразуем result в число
+  const numericResult = typeof result === 'string' ? parseFloat(result) : result;
+  
+  // Проверяем, что это валидное число
+  if (isNaN(numericResult)) {
+    console.warn('StatisticalResultBadge: Invalid numeric result:', { result, type: typeof result });
+    return (
+      <Tooltip title={`Неверное статистическое значение: ${result} (тип: ${typeof result})`}>
+        <Chip 
+          label={showLabel ? `Ошибка (${result})` : "?"} 
+          size={size} 
+          color="default" 
+          variant="outlined"
+        />
+      </Tooltip>
+    );
+  }
+  
+  const { color, label, icon, shortLabel, description } = getConfigForResult(numericResult);
   const displayLabel = showLabel ? label : (size === 'medium' ? icon : shortLabel);
 
   return (
@@ -84,7 +107,7 @@ export const StatisticalResultLegend: React.FC<StatisticalResultLegendProps> = (
     return (
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
         <Typography variant="caption" color="text.secondary">Оценка:</Typography>
-        <StatisticalResultBadge result={1} />
+        <StatisticalResultBadge result={2} />
         <StatisticalResultBadge result={0} />
         <StatisticalResultBadge result={-1} />
         <StatisticalResultBadge result={null} />
@@ -99,21 +122,21 @@ export const StatisticalResultLegend: React.FC<StatisticalResultLegendProps> = (
       </Typography>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <StatisticalResultBadge result={1} size="medium" />
+          <StatisticalResultBadge result={2} size="medium" />
           <Typography variant="body2">
-            Сорт существенно превосходит стандарт по урожайности
+            Сорт существенно превосходит стандарт по урожайности (положительные значения)
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <StatisticalResultBadge result={0} size="medium" />
           <Typography variant="body2">
-            Разница со стандартом незначительная
+            Разница со стандартом незначительная (в пределах НСР)
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <StatisticalResultBadge result={-1} size="medium" />
           <Typography variant="body2">
-            Сорт существенно уступает стандарту
+            Сорт существенно уступает стандарту (отрицательные значения)
           </Typography>
         </Box>
       </Box>

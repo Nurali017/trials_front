@@ -565,8 +565,8 @@ export interface CreateSortRequest {
 export interface MarkSentToLabRequest {
   laboratory_code: string;
   sample_weight_kg: number;
-  sent_date: string;
-  // participant_id удален - теперь отправляются все участники сразу
+  sample_source: string; // Источник образца (правильное имя поля для бэкенда)
+  // sent_date убран - бэкенд устанавливает автоматически
 }
 
 export interface LaboratoryResultItem {
@@ -577,7 +577,7 @@ export interface LaboratoryResultItem {
 export interface LaboratoryBulkEntryRequest {
   laboratory_code: string;
   analysis_date: string;
-  participant_id: number;
+  participant_id?: number; // Опционально - для конкретного участника
   results: LaboratoryResultItem[];
 }
 

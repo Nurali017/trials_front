@@ -173,6 +173,12 @@ export const Form008: React.FC = () => {
   const [warnings, setWarnings] = useState<Form008Warning[]>([]);
   const [participantCodes, setParticipantCodes] = useState<Record<number, { statistical_result: number; statistical_result_display: string }>>({});
   const [savedStatistics, setSavedStatistics] = useState<TrialStatistics | undefined>(undefined);
+  const [manualStatistics, setManualStatistics] = useState<{
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+  } | null>(null);
+  const [needsStatisticsRecalculation, setNeedsStatisticsRecalculation] = useState(false);
 
   // Объединяем данные формы с данными статистики
   const enhancedForm008Data = useMemo(() => {
@@ -401,6 +407,11 @@ export const Form008: React.FC = () => {
         },
       };
       
+      // Если изменилась урожайность, отмечаем что нужен пересчет статистики
+      if (indicatorCode === 'yield' && (savedStatistics || participantCodes && Object.keys(participantCodes).length > 0)) {
+        setNeedsStatisticsRecalculation(true);
+      }
+      
       // Автосохранение
       autoSave(updated, harvestDate);
       
@@ -431,13 +442,13 @@ export const Form008: React.FC = () => {
   const autoSaveConditions = useCallback(
     debounce((data: Form008UpdateConditionsRequest) => {
       // Проверяем, что есть хотя бы одно заполненное поле для сохранения
-      const hasAnyData = data.agro_background || 
-                        data.growing_conditions || 
-                        data.cultivation_technology || 
-                        data.growing_method || 
-                        data.harvest_timing || 
-                        data.harvest_date || 
-                        data.additional_info;
+      const hasAnyData = data.agro_background !== undefined || 
+                        data.growing_conditions !== undefined || 
+                        data.cultivation_technology !== undefined || 
+                        data.growing_method !== undefined || 
+                        data.harvest_timing !== undefined || 
+                        data.harvest_date !== undefined || 
+                        data.additional_info !== undefined;
       
       if (hasAnyData) {
         console.log('🔄 Автосохранение условий испытания:', data);
@@ -569,11 +580,15 @@ export const Form008: React.FC = () => {
 
     // Подготавливаем статистические параметры для расчета кодов групп
     const autoStats = enhancedForm008Data?.auto_statistics;
+    
+    // Проверяем, есть ли ручные изменения статистики
+    const hasManualStats = manualStatistics !== null;
+    
     const statistics = autoStats ? {
-      lsd_095: autoStats.auto_lsd_095,
-      error_mean: autoStats.auto_error_mean,
-      accuracy_percent: autoStats.auto_accuracy_percent,
-      use_auto_calculation: true, // Указываем что используем авторасчет
+      lsd_095: hasManualStats ? manualStatistics?.lsd_095 : autoStats.auto_lsd_095,
+      error_mean: hasManualStats ? manualStatistics?.error_mean : autoStats.auto_error_mean,
+      accuracy_percent: hasManualStats ? manualStatistics?.accuracy_percent : autoStats.auto_accuracy_percent,
+      use_auto_calculation: !hasManualStats, // Используем авторасчет только если нет ручных изменений
     } : undefined;
 
     saveYield(
@@ -586,6 +601,7 @@ export const Form008: React.FC = () => {
         onSuccess: (response) => {
           enqueueSnackbar('Урожайность сохранена', { variant: 'success' });
           setLastSaved(new Date());
+          setNeedsStatisticsRecalculation(false); // Сбрасываем флаг после пересчета
           
           // Обновить коды групп
           if (response.participants_codes && response.participants_codes.length > 0) {
@@ -617,6 +633,20 @@ export const Form008: React.FC = () => {
     );
   };
 
+  // Функции для управления ручными статистиками
+  const handleUseManualStatistics = (values: {
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+  }) => {
+    setManualStatistics(values);
+    enqueueSnackbar('Используются ручные параметры статистики', { variant: 'info' });
+  };
+
+  const handleResetToAutoStatistics = () => {
+    setManualStatistics(null);
+    enqueueSnackbar('Сброшено к авторасчетам', { variant: 'info' });
+  };
 
   // Отправить форму (финал)
   const handleSubmitFinal = () => {
@@ -735,9 +765,9 @@ export const Form008: React.FC = () => {
               startIcon={isSavingYield ? <CircularProgress size={16} /> : <AgricultureIcon />}
               onClick={handleSaveYield}
               disabled={isSaving || isSavingYield || isReadOnly}
-              color="success"
+              color={needsStatisticsRecalculation ? "warning" : "success"}
             >
-              Сохранить урожайность и рассчитать
+              {needsStatisticsRecalculation ? "🔄 Пересчитать статистику" : "Сохранить урожайность и рассчитать"}
             </Button>
 
 
@@ -769,6 +799,17 @@ export const Form008: React.FC = () => {
           </Typography>
         </Alert>
 
+        {/* Уведомление о необходимости пересчета статистики */}
+        {needsStatisticsRecalculation && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>⚠️ Требуется пересчет статистики!</strong> 
+              <br />
+              Данные урожайности были изменены. Нажмите "🔄 Пересчитать статистику" для обновления кодов групп участников.
+            </Typography>
+          </Alert>
+        )}
+
         <Grid container spacing={3}>
           {/* Дата уборки урожая */}
           <Grid item xs={12} sm={6}>
@@ -779,6 +820,8 @@ export const Form008: React.FC = () => {
               value={harvestDate}
               onChange={(e) => {
                 setHarvestDate(e.target.value);
+                // Синхронизируем с conditionsData
+                handleConditionsChange('harvest_date', e.target.value);
                 autoSave(formData, e.target.value);
               }}
               disabled={isReadOnly}
@@ -1107,10 +1150,11 @@ export const Form008: React.FC = () => {
         <StatisticsPreviewDialog
           open={statisticsPreviewDialogOpen}
           onClose={() => setStatisticsPreviewDialogOpen(false)}
-          trialId={trialId}
-          formData={formData}
           form008Data={enhancedForm008Data}
           savedStatistics={savedStatistics}
+          manualStatistics={manualStatistics}
+          onUseManualStatistics={handleUseManualStatistics}
+          onResetToAutoStatistics={handleResetToAutoStatistics}
         />
 
         {/* Form 008 Indicators Management Dialog */}

@@ -202,11 +202,7 @@ export const trialsService = {
     return data;
   },
 
-  // Предварительный просмотр расчетов без сохранения
-  previewStatistics: async (trialId: number, payload: StatisticsPreviewRequest) => {
-    const { data } = await apiClient.post<Form008StatisticsResponse>(`/trials/${trialId}/form008/preview-statistics/`, payload);
-    return data;
-  },
+  // Убираем previewStatistics - не нужен после сохранения данных
 };
 
 // Trial Participants service

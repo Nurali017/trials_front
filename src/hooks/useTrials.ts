@@ -8,7 +8,7 @@ import type {
   LaboratoryCompleteRequest,
   Form008SaveRequest,
   Form008UpdateConditionsRequest,
-  StatisticsPreviewRequest,
+  // Убираем StatisticsPreviewRequest - не используется
   AddIndicatorsRequest,
   RemoveIndicatorsRequest,
 } from '@/types/api.types';
@@ -238,11 +238,7 @@ export const useUpdateTrialConditions = () => {
 
 // ============ СТАТИСТИКА И РАСЧЕТЫ ============
 
-export const usePreviewStatistics = () => {
-  return useMutation({
-    mutationFn: ({ trialId, payload }: { trialId: number; payload: StatisticsPreviewRequest; }) => trialsService.previewStatistics(trialId, payload),
-  });
-};
+// Убираем usePreviewStatistics - не нужен после сохранения данных
 
 // ============ УПРАВЛЕНИЕ ПОКАЗАТЕЛЯМИ ============
 

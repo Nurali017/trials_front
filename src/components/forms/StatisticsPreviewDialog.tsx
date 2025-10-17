@@ -9,50 +9,52 @@ import {
   Typography,
   Grid,
   TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
+  // Убираем неиспользуемые импорты для таблицы
   Chip,
   Alert,
-  CircularProgress,
+  // Убираем CircularProgress - не используется
   Divider,
   Card,
   CardContent,
 } from '@mui/material';
-import { Calculate as CalculateIcon, Preview as PreviewIcon } from '@mui/icons-material';
+import { Calculate as CalculateIcon } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { usePreviewStatistics } from '@/hooks/useTrials';
+// Убираем usePreviewStatistics - не нужен
 import type { 
-  Form008StatisticsResponse, 
-  StatisticsPreviewRequest,
   Form008Data,
-  Form008Result,
   TrialStatistics,
 } from '@/types/api.types';
 
 interface StatisticsPreviewDialogProps {
   open: boolean;
   onClose: () => void;
-  trialId: number;
-  formData: Record<number, Record<string, Form008Result>>;
+  // Убираем неиспользуемые пропсы
   form008Data?: Form008Data;
   savedStatistics?: TrialStatistics;
+  manualStatistics?: {
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+  } | null;
+  onUseManualStatistics?: (values: {
+    lsd_095?: number;
+    error_mean?: number;
+    accuracy_percent?: number;
+  }) => void;
+  onResetToAutoStatistics?: () => void;
 }
 
 export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = ({
   open,
   onClose,
-  trialId,
-  formData,
   form008Data,
   savedStatistics,
+  manualStatistics,
+  onUseManualStatistics,
+  onResetToAutoStatistics,
 }) => {
   const { enqueueSnackbar } = useSnackbar();
-  const { mutate: previewStatistics, data: previewData, isPending, isError, error } = usePreviewStatistics();
+  // Убираем previewStatistics - не нужен после сохранения данных
 
   const [lsd095, setLsd095] = useState<number | ''>('');
   const [errorMean, setErrorMean] = useState<number | ''>('');
@@ -60,21 +62,27 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
 
   // Инициализация значений из существующих данных
   useEffect(() => {
-    // Приоритет у сохраненной статистики, затем у данных формы, затем у авторасчета
-    const statistics = savedStatistics || form008Data?.statistics;
-    const autoStats = form008Data?.auto_statistics;
-    
-    if (statistics) {
-      setLsd095(statistics.lsd_095 || '');
-      setErrorMean(statistics.error_mean || '');
-      setAccuracyPercent(statistics.accuracy_percent || '');
-    } else if (autoStats) {
-      // Используем авторасчет если нет финальной статистики
-      setLsd095(autoStats.auto_lsd_095 || '');
-      setErrorMean(autoStats.auto_error_mean || '');
-      setAccuracyPercent(autoStats.auto_accuracy_percent || '');
+    // Приоритет: ручные значения > сохраненная статистика > авторасчет
+    if (manualStatistics) {
+      setLsd095(manualStatistics.lsd_095 || '');
+      setErrorMean(manualStatistics.error_mean || '');
+      setAccuracyPercent(manualStatistics.accuracy_percent || '');
+    } else {
+      const statistics = savedStatistics || form008Data?.statistics;
+      const autoStats = form008Data?.auto_statistics;
+      
+      if (statistics) {
+        setLsd095(statistics.lsd_095 || '');
+        setErrorMean(statistics.error_mean || '');
+        setAccuracyPercent(statistics.accuracy_percent || '');
+      } else if (autoStats) {
+        // Используем авторасчет если нет финальной статистики
+        setLsd095(autoStats.auto_lsd_095 || '');
+        setErrorMean(autoStats.auto_error_mean || '');
+        setAccuracyPercent(autoStats.auto_accuracy_percent || '');
+      }
     }
-  }, [form008Data, savedStatistics]);
+  }, [form008Data, savedStatistics, manualStatistics]);
 
   // Автоматически заполняем поля авторасчетами при открытии диалога
   useEffect(() => {
@@ -92,44 +100,7 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
     }
   }, [open, form008Data, savedStatistics, lsd095, errorMean, accuracyPercent]);
 
-  const handlePreview = () => {
-    // Используем авторасчет если поле НСР₀.₉₅ не заполнено
-    const lsdValue = lsd095 || form008Data?.auto_statistics?.auto_lsd_095;
-    
-    if (!lsdValue || !form008Data?.participants) {
-      enqueueSnackbar('Введите НСР₀.₉₅ для расчета или убедитесь, что есть авторасчеты', { variant: 'warning' });
-      return;
-    }
-
-    // Подготавливаем данные для предварительного просмотра
-    const participants = form008Data.participants.map(participant => {
-      const results: Record<string, number> = {};
-      
-      // Собираем результаты по всем показателям
-      form008Data.indicators.forEach(indicator => {
-        const result = formData[participant.id]?.[indicator.code];
-        if (result?.value !== undefined) {
-          results[indicator.code] = result.value;
-        }
-      });
-
-      return {
-        participant_id: participant.id,
-        results,
-      };
-    });
-
-    const payload: StatisticsPreviewRequest = {
-      statistics: {
-        lsd_095: Number(lsdValue),
-        error_mean: errorMean ? Number(errorMean) : undefined,
-        accuracy_percent: accuracyPercent ? Number(accuracyPercent) : undefined,
-      },
-      participants,
-    };
-
-    previewStatistics({ trialId, payload });
-  };
+  // Убираем handlePreview - не нужен после сохранения данных
 
   const renderStatisticsCard = (title: string, value: number | undefined | null, unit: string) => (
     <Card variant="outlined" sx={{ height: '100%' }}>
@@ -147,73 +118,7 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
     </Card>
   );
 
-  const renderComparisonTable = (data: Form008StatisticsResponse) => (
-    <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-      <Table stickyHeader size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Участник</TableCell>
-            <TableCell align="center">Урожайность</TableCell>
-            <TableCell align="center">Код группы</TableCell>
-            <TableCell align="center">Отклонение</TableCell>
-            <TableCell align="center">% от стандарта</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {/* Стандарт */}
-          <TableRow sx={{ backgroundColor: 'action.hover' }}>
-            <TableCell>
-              <Box display="flex" alignItems="center" gap={1}>
-                <Typography fontWeight="bold">{data.standard?.sort_name || '—'}</Typography>
-                <Chip label="Стандарт" color="warning" size="small" />
-              </Box>
-            </TableCell>
-            <TableCell align="center">
-              <Typography fontWeight="bold">
-                {data.standard?.yield?.toFixed(2) || '—'}
-              </Typography>
-            </TableCell>
-            <TableCell align="center">—</TableCell>
-            <TableCell align="center">—</TableCell>
-            <TableCell align="center">100%</TableCell>
-          </TableRow>
-
-          {/* Остальные участники */}
-          {data.comparison?.map((participant) => (
-            <TableRow key={participant.participant_id} hover>
-              <TableCell>{participant.sort_name}</TableCell>
-              <TableCell align="center">
-                {participant.yield?.toFixed(2) || '—'}
-              </TableCell>
-              <TableCell align="center">
-                {participant.statistical_result !== undefined ? (
-                  <Chip
-                    label={participant.statistical_result > 0 ? `+${participant.statistical_result}` : participant.statistical_result}
-                    color={participant.statistical_result > 0 ? 'success' : participant.statistical_result < 0 ? 'error' : 'default'}
-                    size="small"
-                  />
-                ) : '—'}
-              </TableCell>
-              <TableCell align="center">
-                {participant.difference_from_standard !== undefined ? (
-                  <Typography color={participant.difference_from_standard > 0 ? 'success.main' : 'error.main'}>
-                    {participant.difference_from_standard > 0 ? '+' : ''}{participant.difference_from_standard.toFixed(2)}
-                  </Typography>
-                ) : '—'}
-              </TableCell>
-              <TableCell align="center">
-                {participant.percent_difference !== undefined ? (
-                  <Typography color={participant.percent_difference > 100 ? 'success.main' : 'error.main'}>
-                    {participant.percent_difference.toFixed(1)}%
-                  </Typography>
-                ) : '—'}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
+  // Убираем renderComparisonTable - не нужна без previewData
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
@@ -229,13 +134,7 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
       </DialogTitle>
       
       <DialogContent dividers>
-        {isError && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              Ошибка: {error?.message || 'Неизвестная ошибка'}
-            </Typography>
-          </Alert>
-        )}
+        {/* Убираем обработку ошибок - не нужна без previewStatistics */}
 
         {/* Информация о сохраненных данных */}
          {savedStatistics && (
@@ -246,7 +145,7 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
            </Alert>
          )}
          
-         {!savedStatistics && !previewData && form008Data?.auto_statistics && (
+         {!savedStatistics && form008Data?.auto_statistics && (
            <Alert severity="warning" sx={{ mb: 3 }}>
              <Typography variant="body2">
                <strong>Показаны авторасчеты для справки.</strong> {form008Data.auto_statistics.note}
@@ -258,6 +157,31 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
                )}
              </Typography>
            </Alert>
+         )}
+
+         {/* Индикатор текущего режима */}
+         {!savedStatistics && (
+           <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+             <Typography variant="body2" color="text.secondary" gutterBottom>
+               Текущий режим расчетов:
+             </Typography>
+             <Box display="flex" alignItems="center" gap={2}>
+               <Chip 
+                 label={manualStatistics ? "Ручной ввод" : "Автоматический расчет"} 
+                 color={manualStatistics ? "primary" : "default"}
+                 size="small"
+               />
+               {manualStatistics && onResetToAutoStatistics && (
+                 <Button 
+                   size="small" 
+                   variant="outlined"
+                   onClick={onResetToAutoStatistics}
+                 >
+                   Сбросить к авторасчету
+                 </Button>
+               )}
+             </Box>
+           </Box>
          )}
 
         {/* Ввод статистических параметров */}
@@ -301,12 +225,51 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
               />
             </Grid>
           </Grid>
+          
+          {/* Кнопки управления */}
+          {!savedStatistics && onUseManualStatistics && (
+            <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  // Валидация
+                  if (!lsd095 || (typeof lsd095 === 'number' && lsd095 <= 0)) {
+                    enqueueSnackbar('НСР₀.₉₅ должен быть положительным числом', { variant: 'error' });
+                    return;
+                  }
+                  
+                  if (errorMean && typeof errorMean === 'number' && errorMean < 0) {
+                    enqueueSnackbar('Ошибка средней не может быть отрицательной', { variant: 'error' });
+                    return;
+                  }
+                  
+                  if (accuracyPercent && typeof accuracyPercent === 'number' && (accuracyPercent < 0 || accuracyPercent > 100)) {
+                    enqueueSnackbar('Точность должна быть от 0 до 100%', { variant: 'error' });
+                    return;
+                  }
+                  
+                  if (onUseManualStatistics) {
+                    onUseManualStatistics({
+                      lsd_095: typeof lsd095 === 'number' ? lsd095 : undefined,
+                      error_mean: typeof errorMean === 'number' ? errorMean : undefined,
+                      accuracy_percent: typeof accuracyPercent === 'number' ? accuracyPercent : undefined,
+                    });
+                  }
+                }}
+                disabled={!lsd095}
+              >
+                Использовать эти значения
+              </Button>
+              {/* Убираем кнопку предварительного просмотра - не нужна после сохранения */}
+            </Box>
+          )}
         </Box>
 
         <Divider sx={{ my: 2 }} />
 
         {/* Результаты расчетов */}
-         {(previewData || savedStatistics || form008Data?.auto_statistics) && (
+         {(savedStatistics || form008Data?.auto_statistics) && (
           <Box>
             <Typography variant="h6" gutterBottom>
               Результаты расчетов
@@ -317,41 +280,33 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
                <Grid item xs={12} sm={4}>
                  {renderStatisticsCard(
                    'НСР₀.₉₅', 
-                   previewData?.statistics?.lsd_095 || savedStatistics?.lsd_095 || form008Data?.auto_statistics?.auto_lsd_095, 
+                   savedStatistics?.lsd_095 || form008Data?.auto_statistics?.auto_lsd_095, 
                    'ц/га'
                  )}
                </Grid>
                <Grid item xs={12} sm={4}>
                  {renderStatisticsCard(
                    'E (ошибка)', 
-                   previewData?.statistics?.error_mean || savedStatistics?.error_mean || form008Data?.auto_statistics?.auto_error_mean, 
+                   savedStatistics?.error_mean || form008Data?.auto_statistics?.auto_error_mean, 
                    'ц/га'
                  )}
                </Grid>
                <Grid item xs={12} sm={4}>
                  {renderStatisticsCard(
                    'P% (точность)', 
-                   previewData?.statistics?.accuracy_percent || savedStatistics?.accuracy_percent || form008Data?.auto_statistics?.auto_accuracy_percent, 
+                   savedStatistics?.accuracy_percent || form008Data?.auto_statistics?.auto_accuracy_percent, 
                    '%'
                  )}
                </Grid>
              </Grid>
 
-            {/* Таблица сравнения - показываем только если есть previewData */}
-            {previewData && (
-              <>
-                <Typography variant="h6" gutterBottom>
-                  Сравнение с стандартом
-                </Typography>
-                {renderComparisonTable(previewData)}
-              </>
-            )}
+            {/* Убираем таблицу сравнения - не нужна без previewData */}
 
             {/* Примечание */}
-            {(previewData?.statistics?.note || savedStatistics?.note || form008Data?.auto_statistics?.note) && (
+            {(savedStatistics?.note || form008Data?.auto_statistics?.note) && (
               <Alert severity="info" sx={{ mt: 2 }}>
                 <Typography variant="body2">
-                  <strong>Примечание:</strong> {previewData?.statistics?.note || savedStatistics?.note || form008Data?.auto_statistics?.note}
+                  <strong>Примечание:</strong> {savedStatistics?.note || form008Data?.auto_statistics?.note}
                 </Typography>
               </Alert>
             )}
@@ -359,7 +314,7 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
         )}
 
         {/* Информация о расчетах */}
-        {!previewData && !savedStatistics && (
+        {!savedStatistics && (
           <Alert severity="info">
             <Typography variant="body2">
               <strong>Как работают расчеты:</strong>
@@ -377,17 +332,10 @@ export const StatisticsPreviewDialog: React.FC<StatisticsPreviewDialogProps> = (
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose} disabled={isPending}>
+        <Button onClick={onClose}>
           Закрыть
         </Button>
-        <Button
-          onClick={handlePreview}
-          variant="contained"
-          startIcon={isPending ? <CircularProgress size={20} /> : <PreviewIcon />}
-          disabled={isPending || !lsd095}
-        >
-          {isPending ? 'Расчет...' : 'Рассчитать'}
-        </Button>
+        {/* Убираем кнопку предварительного просмотра - не нужна после сохранения */}
       </DialogActions>
     </Dialog>
   );
