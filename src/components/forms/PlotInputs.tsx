@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   TextField,
@@ -29,6 +29,11 @@ interface PlotInputsProps {
     type?: string;
     [key: string]: any;
   };
+  // Навигация
+  onNavigate?: (direction: 'up' | 'down' | 'left' | 'right') => void;
+  participantId?: number;
+  indicatorCode?: string;
+  isActive?: boolean; // Является ли эта ячейка активной
 }
 
 export const PlotInputs: React.FC<PlotInputsProps> = ({
@@ -38,7 +43,16 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
   indicatorName,
   disabled = false,
   validationRules,
+  onNavigate,
+  participantId,
+  indicatorCode,
+  isActive = false,
 }) => {
+  // Определяем, является ли показатель урожайностью (должно быть в начале компонента)
+  const isYieldIndicator = indicatorName.toLowerCase().includes('урожайность') || 
+                          indicatorName.toLowerCase().includes('yield') ||
+                          indicatorName.toLowerCase().includes('урожай');
+
   const [usePlots, setUsePlots] = useState(false);
   const [plotValues, setPlotValues] = useState({
     plot_1: value?.plot_1 || '',
@@ -47,6 +61,152 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
     plot_4: value?.plot_4 || '',
   });
   const [directValue, setDirectValue] = useState(value?.value || '');
+  
+  // Рефы для полей ввода
+  const directInputRef = useRef<HTMLInputElement>(null);
+  const plotInputRefs = {
+    plot_1: useRef<HTMLInputElement>(null),
+    plot_2: useRef<HTMLInputElement>(null),
+    plot_3: useRef<HTMLInputElement>(null),
+    plot_4: useRef<HTMLInputElement>(null),
+  };
+
+  // Автоматический фокус при активации ячейки - упрощенная версия
+  useEffect(() => {
+    if (isActive && !disabled) {
+      const focusInput = () => {
+        // Небольшая задержка для стабильности
+        setTimeout(() => {
+          if (usePlots && isYieldIndicator) {
+            // Фокусируемся на первой делянке
+            const firstPlotRef = plotInputRefs.plot_1.current;
+            if (firstPlotRef && firstPlotRef.focus) {
+              firstPlotRef.focus();
+              // Проверяем, есть ли метод select
+              if (typeof firstPlotRef.select === 'function') {
+                firstPlotRef.select();
+              }
+              if (import.meta.env.DEV) {
+                console.log('PlotInputs: Focused on plot input for yield indicator');
+              }
+            }
+          } else {
+            // Фокусируемся на прямом вводе
+            const directRef = directInputRef.current;
+            if (directRef && directRef.focus) {
+              directRef.focus();
+              // Проверяем, есть ли метод select
+              if (typeof directRef.select === 'function') {
+                directRef.select();
+              }
+              if (import.meta.env.DEV) {
+                console.log('PlotInputs: Focused on direct input');
+              }
+            }
+          }
+        }, 50); // Уменьшенная задержка
+      };
+      
+      focusInput();
+      
+      // Дополнительная проверка через больший интервал для надежности
+      setTimeout(() => {
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement && (
+          activeElement === directInputRef.current ||
+          Object.values(plotInputRefs).some(ref => activeElement === ref.current)
+        );
+        
+        if (!isInputFocused) {
+          if (import.meta.env.DEV) {
+            console.log('PlotInputs: Additional focus check - restoring focus');
+          }
+          focusInput();
+        }
+      }, 300);
+    }
+  }, [isActive, usePlots, isYieldIndicator, disabled]);
+
+  // Обработчики для предотвращения потери фокуса
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (import.meta.env.DEV) {
+      console.log('PlotInputs: Input focused', e.target.name || 'direct');
+    }
+  };
+
+  const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Если ячейка активна, но фокус потерялся, пытаемся вернуть его
+    if (isActive && !disabled) {
+      setTimeout(() => {
+        const activeElement = document.activeElement;
+        const isStillFocused = activeElement && (
+          activeElement === directInputRef.current ||
+          Object.values(plotInputRefs).some(ref => activeElement === ref.current)
+        );
+        
+        if (!isStillFocused) {
+          if (import.meta.env.DEV) {
+            console.log('PlotInputs: Lost focus, attempting to restore');
+          }
+          // Пытаемся вернуть фокус
+          if (usePlots && isYieldIndicator) {
+            const firstPlotRef = plotInputRefs.plot_1.current;
+            if (firstPlotRef && firstPlotRef.focus) {
+              firstPlotRef.focus();
+            }
+          } else {
+            const directRef = directInputRef.current;
+            if (directRef && directRef.focus) {
+              directRef.focus();
+            }
+          }
+        }
+      }, 10);
+    }
+  };
+
+  // Периодическая проверка и восстановление фокуса
+  useEffect(() => {
+    if (isActive && !disabled) {
+      const focusCheckInterval = setInterval(() => {
+        const activeElement = document.activeElement;
+        const isInputFocused = activeElement && (
+          activeElement === directInputRef.current ||
+          Object.values(plotInputRefs).some(ref => activeElement === ref.current)
+        );
+        
+        if (!isInputFocused) {
+          if (import.meta.env.DEV) {
+            console.log('PlotInputs: Periodic focus check - restoring focus');
+          }
+          // Восстанавливаем фокус
+          if (usePlots && isYieldIndicator) {
+            const firstPlotRef = plotInputRefs.plot_1.current;
+            if (firstPlotRef && firstPlotRef.focus) {
+              firstPlotRef.focus();
+              // Проверяем, есть ли метод select
+              if (typeof firstPlotRef.select === 'function') {
+                firstPlotRef.select();
+              }
+            }
+          } else {
+            const directRef = directInputRef.current;
+            if (directRef && directRef.focus) {
+              directRef.focus();
+              // Проверяем, есть ли метод select
+              if (typeof directRef.select === 'function') {
+                directRef.select();
+              }
+            }
+          }
+        }
+      }, 1000); // Проверяем каждую секунду
+
+      return () => {
+        clearInterval(focusCheckInterval);
+      };
+    }
+  }, [isActive, disabled, usePlots, isYieldIndicator]);
 
   // Функция валидации значения
   const validateValue = (val: number): { isValid: boolean; error?: string } => {
@@ -96,12 +256,29 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
     return inputValue;
   };
 
-  // Обработчик клавиш для блокировки некорректного ввода
+  // Обработчик клавиш для блокировки некорректного ввода и навигации
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Обработка навигации стрелками - ПРИОРИТЕТ
+    if (onNavigate && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      const direction = e.key.replace('Arrow', '').toLowerCase() as 'up' | 'down' | 'left' | 'right';
+      if (import.meta.env.DEV) {
+        console.log('PlotInputs: Navigation key pressed', direction, 'onNavigate exists:', !!onNavigate);
+      }
+      try {
+        onNavigate(direction);
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.error('PlotInputs: Error in onNavigate:', error);
+        }
+      }
+      return;
+    }
+
     if (!validationRules) return;
 
-    // Разрешаем служебные клавиши
-    const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    // Разрешаем служебные клавиши (БЕЗ стрелок - они уже обработаны выше)
+    const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Enter', 'Escape', 'Home', 'End'];
     if (allowedKeys.includes(e.key)) return;
 
     // Разрешаем Ctrl/Cmd комбинации
@@ -164,11 +341,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
     
     return parts.length > 0 ? parts.join(', ') : '';
   };
-
-  // Определяем, является ли показатель урожайностью
-  const isYieldIndicator = indicatorName.toLowerCase().includes('урожайность') || 
-                          indicatorName.toLowerCase().includes('yield') ||
-                          indicatorName.toLowerCase().includes('урожай');
 
   // Инициализация состояния на основе существующих данных
   useEffect(() => {
@@ -325,12 +497,15 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
               return (
                 <TextField
                   key={key}
+                  ref={plotInputRefs[key as keyof typeof plotInputRefs]}
                   size="small"
                   type="number"
                   label={`Делянка ${key.split('_')[1]}`}
                   value={val}
                   onChange={(e) => handlePlotChange(key as keyof typeof plotValues, e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
                   disabled={disabled}
                   error={textFieldProps.error}
                   helperText={textFieldProps.helperText}
@@ -338,6 +513,7 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
                     step: validationRules?.precision === 0 ? 1 : validationRules?.precision === 1 ? 0.1 : 0.1,
                     min: validationRules?.min_value || 0,
                     max: validationRules?.max_value,
+                    name: `plot_${key.split('_')[1]}`,
                   }}
                 sx={{
                   '& .MuiInputBase-input': {
@@ -363,11 +539,14 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
       ) : (
         /* Прямой ввод значения - для всех показателей кроме урожайности в режиме делянок */
         <TextField
+          ref={directInputRef}
           size="small"
           type="number"
           value={directValue}
           onChange={(e) => handleDirectValueChange(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleInputFocus}
+          onBlur={handleInputBlur}
           disabled={disabled}
           error={getTextFieldProps(parseFloat(directValue) || 0).error}
           helperText={getTextFieldProps(parseFloat(directValue) || 0).helperText}
@@ -375,6 +554,7 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
             step: validationRules?.precision === 0 ? 1 : validationRules?.precision === 1 ? 0.1 : 0.1,
             min: validationRules?.min_value || 0,
             max: validationRules?.max_value,
+            name: 'direct',
           }}
           sx={{
             '& .MuiInputBase-input': {

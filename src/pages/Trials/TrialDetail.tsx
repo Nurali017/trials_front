@@ -7,8 +7,6 @@ import {
   CircularProgress,
   Grid,
   Chip,
-  Card,
-  CardContent,
   Alert,
   Table,
   TableBody,
@@ -32,7 +30,8 @@ import type { TrialParticipant } from '@/types/api.types';
 import {
   getTrialStatusMuiColor,
   getTrialStatusLabel,
-  calculateProgress,
+  getDecisionMuiColor,
+  getDecisionLabel,
 } from '@/utils/statusHelpers';
 import { formatDate } from '@/utils/dateHelpers';
 
@@ -70,7 +69,6 @@ export const TrialDetail: React.FC = () => {
     );
   }
 
-  const progress = calculateProgress(trial.results_count, trial.indicators_data?.length || 0);
 
   return (
     <Box>
@@ -110,6 +108,21 @@ export const TrialDetail: React.FC = () => {
               onClick={() => navigate(`/trials/${id}/form008`)}
             >
               Просмотр формы 008
+            </Button>
+          )}
+
+          {/* Кнопка для массового ввода лабораторных данных */}
+          {trial.status === 'lab_sample_sent' && trial.participants_data && trial.participants_data.length > 0 && (
+            <Button
+              startIcon={<LabIcon />}
+              variant="outlined"
+              color="info"
+              onClick={() => {
+                setSelectedParticipantForLab(undefined); // undefined означает массовый ввод
+                setLabResultsDialogOpen(true);
+              }}
+            >
+              Ввод лабораторных данных
             </Button>
           )}
 
@@ -194,6 +207,18 @@ export const TrialDetail: React.FC = () => {
               </Typography>
             )}
           </Grid>
+
+          {/* Группа спелости */}
+          {trial.participants_data && trial.participants_data.length > 0 && (
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Группа спелости
+              </Typography>
+              <Typography variant="body1">
+                {trial.participants_data[0].maturity_group_code || 'Не указана'}
+              </Typography>
+            </Grid>
+          )}
 
           {trial.trial_type_data && (
             <Grid item xs={12} md={6}>
@@ -295,11 +320,9 @@ export const TrialDetail: React.FC = () => {
                   <TableCell>№</TableCell>
                   <TableCell>Сорт</TableCell>
                   <TableCell>Группа</TableCell>
+                  <TableCell>Группа спелости</TableCell>
                   <TableCell>Заявка</TableCell>
                   <TableCell>Статистическая оценка</TableCell>
-                  {trial.status === 'lab_sample_sent' && (
-                    <TableCell align="center">Лабораторные результаты</TableCell>
-                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -326,6 +349,11 @@ export const TrialDetail: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
+                        <Typography variant="body2">
+                          {participant.maturity_group_code || 'Не указана'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
                         {participant.application_number ? (
                           <Typography
                             variant="body2"
@@ -341,22 +369,6 @@ export const TrialDetail: React.FC = () => {
                       <TableCell>
                         <StatisticalResultBadge result={participant.statistical_result} />
                       </TableCell>
-                      {trial.status === 'lab_sample_sent' && (
-                        <TableCell align="center">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            color="info"
-                            startIcon={<LabIcon />}
-                            onClick={() => {
-                              setSelectedParticipantForLab(participant);
-                              setLabResultsDialogOpen(true);
-                            }}
-                          >
-                            Внести
-                          </Button>
-                        </TableCell>
-                      )}
                     </TableRow>
                   ))}
               </TableBody>
@@ -465,18 +477,16 @@ export const TrialDetail: React.FC = () => {
         onSuccess={refetch}
       />
 
-      {selectedParticipantForLab && (
-        <LaboratoryResultsDialog
-          open={labResultsDialogOpen}
-          onClose={() => {
-            setLabResultsDialogOpen(false);
-            setSelectedParticipantForLab(undefined);
-          }}
-          trial={trial}
-          participant={selectedParticipantForLab}
-          onSuccess={refetch}
-        />
-      )}
+      <LaboratoryResultsDialog
+        open={labResultsDialogOpen}
+        onClose={() => {
+          setLabResultsDialogOpen(false);
+          setSelectedParticipantForLab(undefined);
+        }}
+        trial={trial}
+        participant={selectedParticipantForLab}
+        onSuccess={refetch}
+      />
     </Box>
   );
 };

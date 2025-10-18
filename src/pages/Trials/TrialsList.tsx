@@ -26,7 +26,6 @@ import { useOblasts } from '@/hooks/useDictionaries';
 import {
   getTrialStatusMuiColor,
   getTrialStatusLabel,
-  calculateProgress,
 } from '@/utils/statusHelpers';
 import { formatDate } from '@/utils/dateHelpers';
 import { TableSkeleton } from '@/components/common/TableSkeleton';
@@ -196,6 +195,7 @@ export const TrialsList: React.FC = () => {
                 <TableCell>Тип испытания</TableCell>
                 <TableCell>Область</TableCell>
                 <TableCell>ГСУ</TableCell>
+                <TableCell>Группа спелости</TableCell>
                 <TableCell>Период</TableCell>
                 <TableCell>Статус</TableCell>
                 <TableCell>Прогресс</TableCell>
@@ -204,10 +204,7 @@ export const TrialsList: React.FC = () => {
             </TableHead>
             <TableBody>
               {filteredTrials.map((trial: any) => {
-                const progress = calculateProgress(
-                  trial.results_count,
-                  trial.indicators_data?.length || 0
-                );
+                const progress = trial.completion_status?.filled_percent || 0;
 
                 return (
                   <TableRow key={trial.id} hover>
@@ -229,6 +226,11 @@ export const TrialsList: React.FC = () => {
                     </TableCell>
                     <TableCell>{trial.oblast_name}</TableCell>
                     <TableCell>{trial.region_name}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {trial.participants_data?.[0]?.maturity_group_code || 'Не указана'}
+                      </Typography>
+                    </TableCell>
                     <TableCell>
                       <Typography variant="body2">
                         {trial.year || new Date(trial.start_date).getFullYear()}
@@ -264,7 +266,7 @@ export const TrialsList: React.FC = () => {
                           />
                         </Box>
                         <Typography variant="caption" color="text.secondary">
-                          {trial.results_count}/{trial.indicators_data?.length || 0}
+                          {trial.completion_status?.filled_percent?.toFixed(1) || 0}%
                         </Typography>
                       </Box>
                     </TableCell>

@@ -596,6 +596,9 @@ const TrialPlanDetail: React.FC = () => {
                                     .slice(0, maturityGroups.findIndex(g => g.group === group))
                                     .reduce((sum, g) => sum + g.participants.length, 0) + participantNumber;
                                   
+                                  // Проверяем, есть ли стандарты в этой группе спелости
+                                  const hasStandardsInGroup = participants.some(p => p.statistical_group === 0);
+                                  
                                   return (
                                     <TableRow key={participant.id} hover>
                                       <TableCell 
@@ -648,7 +651,7 @@ const TrialPlanDetail: React.FC = () => {
                                             >
                                               {matchingTrial ? (
                                                 <Typography variant="body2" fontWeight={600}>
-                                                  Х {participant.statistical_group === 0 ? 'ст' : 'б/ст'}
+                                                  {participant.statistical_group === 0 && hasStandardsInGroup ? 'Х ст' : (hasStandardsInGroup ? 'Х' : 'Х б/ст')}
                                                 </Typography>
                                               ) : (
                                                 <Typography variant="body2" color="text.disabled">

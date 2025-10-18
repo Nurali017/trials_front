@@ -12,9 +12,17 @@ import {
   TableHead,
   TableRow,
   Alert,
+  Box,
+  Typography,
+  Chip,
+  TableContainer,
+  Paper,
 } from '@mui/material';
+import {
+  Add as AddIcon,
+} from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
-import { useLaboratoryBulkEntry } from '@/hooks/useTrials';
+import { useLaboratoryBulkEntry, useGetIndicatorsByCulture, useAddIndicators, useRemoveIndicators } from '@/hooks/useTrials';
 import { getTodayISO } from '@/utils/dateHelpers';
 import type { Trial, TrialParticipant, Indicator } from '@/types/api.types';
 
@@ -22,7 +30,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   trial: Trial;
-  participant: TrialParticipant; // Обязательно - для конкретного участника
+  participant?: TrialParticipant; // Опционально - для массового ввода
   onSuccess: () => void;
 }
 
@@ -36,11 +44,14 @@ export const LaboratoryResultsDialog: React.FC<Props> = ({
   const { enqueueSnackbar } = useSnackbar();
   const { mutate, isPending } = useLaboratoryBulkEntry();
   
+  // Хуки для управления показателями
+  const { data: availableIndicators } = useGetIndicatorsByCulture(trial.culture);
+  const { mutate: addIndicators } = useAddIndicators();
+  const { mutate: removeIndicators } = useRemoveIndicators();
+  
   const [analysisDate, setAnalysisDate] = useState(getTodayISO());
-  const [values, setValues] = useState<Record<number, number>>({});
-
-  // Проверяем, есть ли хотя бы одно заполненное значение
-  const hasValues = Object.values(values).some(value => value !== null && value !== undefined && value !== '');
+  const [showIndicatorsManagement, setShowIndicatorsManagement] = useState(false);
+  const [massValues, setMassValues] = useState<Record<number, Record<number, number>>>({}); // participantId -> indicatorId -> value
 
   // Получаем качественные показатели из самого trial
   const qualityIndicators = (trial.indicators_data || []).filter(
@@ -69,7 +80,8 @@ export const LaboratoryResultsDialog: React.FC<Props> = ({
     return { isValid: true };
   };
 
-  const handleValueChange = (indicatorId: number, value: string) => {
+
+  const handleMassValueChange = (participantId: number, indicatorId: number, value: string) => {
     const indicator = qualityIndicators.find(ind => ind.id === indicatorId);
     const validationRules = indicator?.validation_rules;
     
@@ -98,75 +110,91 @@ export const LaboratoryResultsDialog: React.FC<Props> = ({
       }
     }
     
-    setValues((prev) => ({
+    setMassValues((prev) => ({
       ...prev,
-      [indicatorId]: processedValue === '' ? 0 : Number(processedValue),
+      [participantId]: {
+        ...prev[participantId],
+        [indicatorId]: processedValue === '' ? 0 : Number(processedValue),
+      },
     }));
   };
 
   const handleSubmit = () => {
+    // Массовый ввод для всех участников
+    const participants = trial.participants_data || [];
+    let totalSaved = 0;
+    let totalErrors = 0;
 
-    // Валидация всех введенных значений
-    const validationErrors: string[] = [];
-    const results = Object.entries(values)
-      .filter(([_, value]) => value !== '' && value !== null && value !== undefined)
-      .map(([indicatorId, value]) => {
-        const indicator = qualityIndicators.find(ind => ind.id === Number(indicatorId));
-        const numValue = Number(value);
-        
-        if (indicator) {
-          const validation = validateValue(indicator, numValue);
-          if (!validation.isValid && validation.error) {
-            validationErrors.push(`${indicator.name}: ${validation.error}`);
-          }
-        }
-        
-        return {
+    const savePromises = participants.map(async (participant) => {
+      const participantValues = massValues[participant.id] || {};
+      const results = Object.entries(participantValues)
+        .filter(([_, value]) => value !== null && value !== undefined && value !== 0)
+        .map(([indicatorId, value]) => ({
           indicator: Number(indicatorId),
-          value: numValue,
-        };
-      });
+          value: Number(value),
+        }));
 
-    if (validationErrors.length > 0) {
-      enqueueSnackbar(`Ошибки валидации: ${validationErrors.join('; ')}`, { variant: 'error' });
-      return;
-    }
+      if (results.length === 0) return; // Пропускаем участников без данных
 
-    if (results.length === 0) {
-      enqueueSnackbar('Введите хотя бы один показатель', { variant: 'warning' });
-      return;
-    }
-
-    mutate(
-      {
-        id: trial.id,
-        payload: {
-          laboratory_code: trial.laboratory_code || '', // Может быть пустым
-          analysis_date: analysisDate,
-          participant_id: participant.id, // Обязательно для конкретного участника
-          results,
-        },
-      },
-      {
-        onSuccess: () => {
-          enqueueSnackbar('Лабораторные результаты сохранены', { variant: 'success' });
-          onSuccess();
-          onClose();
-          // Reset form
-          setAnalysisDate(getTodayISO());
-          setValues({});
-        },
-        onError: (error: any) => {
-          enqueueSnackbar(`Ошибка: ${error.message}`, { variant: 'error' });
-        },
+      try {
+        await new Promise((resolve, reject) => {
+          mutate(
+            {
+              id: trial.id,
+              payload: {
+                laboratory_code: trial.laboratory_code || '',
+                analysis_date: analysisDate,
+                participant_id: participant.id,
+                results,
+              },
+            },
+            {
+              onSuccess: () => {
+                totalSaved++;
+                resolve(true);
+              },
+              onError: (error: any) => {
+                totalErrors++;
+                reject(error);
+              },
+            }
+          );
+        });
+      } catch (error) {
+        console.error(`Ошибка для участника ${participant.id}:`, error);
       }
-    );
+    });
+
+    Promise.allSettled(savePromises).then(() => {
+      if (totalSaved > 0) {
+        enqueueSnackbar(`Сохранено для ${totalSaved} участников`, { variant: 'success' });
+        onSuccess();
+        onClose();
+        setAnalysisDate(getTodayISO());
+        setMassValues({});
+      } else {
+        enqueueSnackbar('Нет данных для сохранения', { variant: 'warning' });
+      }
+    });
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        Лабораторные результаты: {participant.sort_record_data.name}
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="h6">
+            Лабораторные результаты: Все участники ({trial.participants_data?.length || 0})
+          </Typography>
+          <Box display="flex" gap={1} alignItems="center">
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setShowIndicatorsManagement(!showIndicatorsManagement)}
+            >
+              Управление показателями
+            </Button>
+          </Box>
+        </Box>
       </DialogTitle>
       <DialogContent>
         {trial.laboratory_code ? (
@@ -179,6 +207,87 @@ export const LaboratoryResultsDialog: React.FC<Props> = ({
           </Alert>
         )}
 
+        {/* Управление показателями */}
+        {showIndicatorsManagement && (
+          <Box sx={{ mb: 3, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+            <Typography variant="h6" gutterBottom>
+              Управление показателями
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Добавьте или удалите показатели для лабораторного анализа
+            </Typography>
+            
+            {/* Текущие показатели */}
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Текущие показатели ({qualityIndicators.length}):
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {qualityIndicators.map((indicator) => (
+                  <Chip
+                    key={indicator.id}
+                    label={`${indicator.name} (${indicator.unit})`}
+                    onDelete={() => {
+                      removeIndicators(
+                        { trialId: trial.id, payload: { indicator_ids: [indicator.id] } },
+                        {
+                          onSuccess: () => {
+                            enqueueSnackbar('Показатель удален', { variant: 'success' });
+                            onSuccess();
+                          },
+                          onError: (error: any) => {
+                            enqueueSnackbar(`Ошибка: ${error.message}`, { variant: 'error' });
+                          },
+                        }
+                      );
+                    }}
+                    color="primary"
+                    variant="outlined"
+                  />
+                ))}
+              </Box>
+            </Box>
+
+            {/* Доступные показатели для добавления */}
+            {availableIndicators && (
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Доступные показатели:
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {availableIndicators?.quality_indicators
+                    ?.filter((indicator: Indicator) => 
+                      !qualityIndicators.some(qi => qi.id === indicator.id)
+                    )
+                    .map((indicator: Indicator) => (
+                      <Chip
+                        key={indicator.id}
+                        label={`${indicator.name} (${indicator.unit})`}
+                        onClick={() => {
+                          addIndicators(
+                            { trialId: trial.id, payload: { indicator_ids: [indicator.id] } },
+                            {
+                              onSuccess: () => {
+                                enqueueSnackbar('Показатель добавлен', { variant: 'success' });
+                                onSuccess();
+                              },
+                              onError: (error: any) => {
+                                enqueueSnackbar(`Ошибка: ${error.message}`, { variant: 'error' });
+                              },
+                            }
+                          );
+                        }}
+                        color="default"
+                        variant="outlined"
+                        icon={<AddIcon />}
+                      />
+                    ))}
+                </Box>
+              </Box>
+            )}
+          </Box>
+        )}
+
         <TextField
           label="Дата анализа"
           type="date"
@@ -189,52 +298,71 @@ export const LaboratoryResultsDialog: React.FC<Props> = ({
           sx={{ mb: 2 }}
         />
 
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Показатель</TableCell>
-              <TableCell>Единица</TableCell>
-              <TableCell width={150}>Значение</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {qualityIndicators.map((indicator: Indicator) => {
-              const currentValue = values[indicator.id] || '';
-              const numValue = Number(currentValue);
-              const validation = validateValue(indicator, numValue);
-              const validationRules = indicator.validation_rules;
-              
-              return (
-                <TableRow key={indicator.id}>
-                  <TableCell>{indicator.name}</TableCell>
-                  <TableCell>{indicator.unit}</TableCell>
-                  <TableCell>
-                    <TextField
-                      type="number"
-                      size="small"
-                      fullWidth
-                      value={currentValue}
-                      onChange={(e) => handleValueChange(indicator.id, e.target.value)}
-                      error={!validation.isValid}
-                      helperText={
-                        !validation.isValid 
-                          ? validation.error 
-                          : validationRules 
-                            ? `мин: ${validationRules.min_value || 0}, макс: ${validationRules.max_value || '∞'}`
-                            : ''
-                      }
-                      inputProps={{ 
-                        step: validationRules?.precision === 0 ? 1 : validationRules?.precision === 1 ? 0.1 : 0.1,
-                        min: validationRules?.min_value || 0,
-                        max: validationRules?.max_value,
-                      }}
-                    />
-                  </TableCell>
+        {/* Массовый ввод */}
+        {(
+          <TableContainer component={Paper} sx={{ mb: 2 }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Участник</TableCell>
+                  {qualityIndicators.map((indicator) => (
+                    <TableCell key={indicator.id} align="center">
+                      {indicator.name}
+                      <Typography variant="caption" display="block">
+                        ({indicator.unit})
+                      </Typography>
+                    </TableCell>
+                  ))}
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              </TableHead>
+              <TableBody>
+                {(trial.participants_data || []).map((participant) => (
+                  <TableRow key={participant.id}>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>
+                        {participant.sort_record_data.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        №{participant.participant_number}
+                      </Typography>
+                    </TableCell>
+                    {qualityIndicators.map((indicator) => {
+                      const currentValue = massValues[participant.id]?.[indicator.id] || '';
+                      const numValue = Number(currentValue);
+                      const validation = validateValue(indicator, numValue);
+                      const validationRules = indicator.validation_rules;
+                      
+                      return (
+                        <TableCell key={indicator.id} align="center">
+                          <TextField
+                            type="number"
+                            size="small"
+                            value={currentValue}
+                            onChange={(e) => handleMassValueChange(participant.id, indicator.id, e.target.value)}
+                            error={!validation.isValid}
+                            helperText={
+                              !validation.isValid 
+                                ? validation.error 
+                                : validationRules 
+                                  ? `мин: ${validationRules.min_value || 0}, макс: ${validationRules.max_value || '∞'}`
+                                  : ''
+                            }
+                            inputProps={{ 
+                              step: validationRules?.precision === 0 ? 1 : validationRules?.precision === 1 ? 0.1 : 0.1,
+                              min: validationRules?.min_value || 0,
+                              max: validationRules?.max_value,
+                            }}
+                            sx={{ width: 120 }}
+                          />
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
 
         {qualityIndicators.length === 0 && (
           <Alert severity="info" sx={{ mt: 2 }}>
@@ -247,14 +375,14 @@ export const LaboratoryResultsDialog: React.FC<Props> = ({
         <Button 
           onClick={handleSubmit} 
           variant="contained" 
-          disabled={isPending || !hasValues}
+          disabled={isPending || Object.keys(massValues).length === 0}
           title={
-            !hasValues 
+            Object.keys(massValues).length === 0
               ? 'Введите хотя бы одно значение' 
               : ''
           }
         >
-          Сохранить
+          Сохранить для всех
         </Button>
       </DialogActions>
     </Dialog>

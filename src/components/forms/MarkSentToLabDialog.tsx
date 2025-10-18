@@ -23,18 +23,12 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
   const { enqueueSnackbar } = useSnackbar();
   const { mutate, isPending } = useMarkSentToLab();
 
-  const [laboratoryCode, setLaboratoryCode] = useState('');
   const [sampleWeightKg, setSampleWeightKg] = useState<number>(2.0);
   const [sampleSource, setSampleSource] = useState('');
 
   const participantsCount = trial.participants_data?.length || 0;
 
   const handleSubmit = () => {
-    if (!laboratoryCode) {
-      enqueueSnackbar('Укажите код лаборатории', { variant: 'warning' });
-      return;
-    }
-
     if (!sampleSource) {
       enqueueSnackbar('Укажите источник образца', { variant: 'warning' });
       return;
@@ -49,7 +43,6 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
       {
         id: trial.id,
         payload: {
-          laboratory_code: laboratoryCode,
           sample_weight_kg: sampleWeightKg,
           sample_source: sampleSource,
         },
@@ -63,7 +56,6 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
           onSuccess();
           onClose();
           // Reset form
-          setLaboratoryCode('');
           setSampleWeightKg(2.0);
           setSampleSource('');
         },
@@ -87,17 +79,6 @@ export const MarkSentToLabDialog: React.FC<Props> = ({ open, onClose, trial, onS
               value={`${participantsCount} участников будут отправлены на анализ`}
               disabled
               helperText="Образцы всех участников испытания отправляются в лабораторию для анализа качественных показателей"
-            />
-          </Grid>
-
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="Код лаборатории *"
-              fullWidth
-              value={laboratoryCode}
-              onChange={(e) => setLaboratoryCode(e.target.value)}
-              placeholder="LAB-2025-001-ALM"
-              helperText="Уникальный идентификатор партии образцов"
             />
           </Grid>
 

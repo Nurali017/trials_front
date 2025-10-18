@@ -563,7 +563,6 @@ export interface CreateSortRequest {
 
 // Laboratory workflow types
 export interface MarkSentToLabRequest {
-  laboratory_code: string;
   sample_weight_kg: number;
   sample_source: string; // Источник образца (правильное имя поля для бэкенда)
   // sent_date убран - бэкенд устанавливает автоматически

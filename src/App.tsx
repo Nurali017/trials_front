@@ -6,6 +6,8 @@ import { SnackbarProvider } from 'notistack';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { MainLayout } from './components/layout/MainLayout';
+import ErrorBoundary from './components/common/ErrorBoundary';
+import RouteErrorBoundary from './components/common/RouteErrorBoundary';
 import { Login } from './pages/Auth/Login';
 import { Dashboard } from './pages/Dashboard/Dashboard';
 import { ApplicationsList } from './pages/Applications/ApplicationsList';
@@ -84,96 +86,99 @@ const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <SnackbarProvider
-          maxSnack={3}
-          anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          autoHideDuration={3000}
-        >
-          <BrowserRouter>
-            <AuthProvider>
-              <Routes>
-                {/* Public Routes */}
-                <Route path="/login" element={<Login />} />
+    <ErrorBoundary showDetails={process.env.NODE_ENV === 'development'}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <SnackbarProvider
+            maxSnack={3}
+            anchorOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+            autoHideDuration={3000}
+          >
+            <BrowserRouter>
+              <AuthProvider>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/login" element={<Login />} />
 
-                {/* Protected Routes */}
-                <Route
-                  path="/"
-                  element={
-                    <ProtectedRoute>
-                      <MainLayout />
-                    </ProtectedRoute>
-                  }
-                >
-                  <Route index element={<Dashboard />} />
+                  {/* Protected Routes */}
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <MainLayout />
+                      </ProtectedRoute>
+                    }
+                    errorElement={<RouteErrorBoundary />}
+                  >
+                    <Route index element={<Dashboard />} />
 
-                  {/* Applications */}
-                  <Route path="applications">
-                    <Route index element={<ApplicationsList />} />
-                    <Route path=":id" element={<ApplicationDetail />} />
-                    <Route path="create" element={<ApplicationCreate />} />
-                  </Route>
-
-                  {/* Trials */}
-                  <Route path="trials">
-                    <Route index element={<TrialsList />} />
-                    <Route path="my-tasks" element={<MyTasks />} />
-                    <Route path=":id" element={<TrialDetail />} />
-                    <Route path=":id/form008" element={<Form008 />} />
-                    <Route path=":id/results/add" element={<ResultsEntry />} />
-                  </Route>
-
-                  {/* Annual Decisions */}
-                  <Route path="decisions">
-                    <Route path="annual-tables">
-                      <Route index element={<AnnualTablesList />} />
-                      <Route path=":id" element={<AnnualTableView />} />
+                    {/* Applications */}
+                    <Route path="applications">
+                      <Route index element={<ApplicationsList />} />
+                      <Route path=":id" element={<ApplicationDetail />} />
+                      <Route path="create" element={<ApplicationCreate />} />
                     </Route>
-                  </Route>
 
-                  {/* Results */}
-                  <Route path="results">
-                    <Route
-                      index
-                      element={<PlaceholderPage title="Результаты измерений" />}
-                    />
-                  </Route>
+                    {/* Trials */}
+                    <Route path="trials">
+                      <Route index element={<TrialsList />} />
+                      <Route path="my-tasks" element={<MyTasks />} />
+                      <Route path=":id" element={<TrialDetail />} />
+                      <Route path=":id/form008" element={<Form008 />} />
+                      <Route path=":id/results/add" element={<ResultsEntry />} />
+                    </Route>
 
-                  {/* Sort Records */}
-                  <Route path="sort-records">
-                    <Route index element={<SortsList />} />
-                  </Route>
+                    {/* Annual Decisions */}
+                    <Route path="decisions">
+                      <Route path="annual-tables">
+                        <Route index element={<AnnualTablesList />} />
+                        <Route path=":id" element={<AnnualTableView />} />
+                      </Route>
+                    </Route>
 
-                  {/* Trial Plans */}
-                  <Route path="trial-plans">
-                    <Route index element={<TrialPlansList />} />
-                    <Route path=":id" element={<TrialPlanDetail />} />
-                  </Route>
+                    {/* Results */}
+                    <Route path="results">
+                      <Route
+                        index
+                        element={<PlaceholderPage title="Результаты измерений" />}
+                      />
+                    </Route>
 
-                  {/* Dictionaries */}
-                  <Route path="dictionaries">
-                    <Route index element={<DictionariesMain />} />
-                    <Route path="culture-groups" element={<CultureGroupsPage />} />
-                    <Route path="cultures" element={<CulturesPage />} />
-                    <Route path="regions" element={<RegionsPage />} />
-                    <Route path="oblasts" element={<OblastsPage />} />
-                    <Route path="indicators" element={<IndicatorsPage />} />
-                  </Route>
+                    {/* Sort Records */}
+                    <Route path="sort-records">
+                      <Route index element={<SortsList />} />
+                    </Route>
 
-                  {/* Catch all */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Route>
-              </Routes>
-            </AuthProvider>
-          </BrowserRouter>
-        </SnackbarProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+                    {/* Trial Plans */}
+                    <Route path="trial-plans">
+                      <Route index element={<TrialPlansList />} />
+                      <Route path=":id" element={<TrialPlanDetail />} />
+                    </Route>
+
+                    {/* Dictionaries */}
+                    <Route path="dictionaries">
+                      <Route index element={<DictionariesMain />} />
+                      <Route path="culture-groups" element={<CultureGroupsPage />} />
+                      <Route path="cultures" element={<CulturesPage />} />
+                      <Route path="regions" element={<RegionsPage />} />
+                      <Route path="oblasts" element={<OblastsPage />} />
+                      <Route path="indicators" element={<IndicatorsPage />} />
+                    </Route>
+
+                    {/* Catch all */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Route>
+                </Routes>
+              </AuthProvider>
+            </BrowserRouter>
+          </SnackbarProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

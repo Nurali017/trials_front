@@ -179,6 +179,181 @@ export const Form008: React.FC = () => {
     accuracy_percent?: number;
   } | null>(null);
   const [needsStatisticsRecalculation, setNeedsStatisticsRecalculation] = useState(false);
+  
+  // Навигация по ячейкам
+  const [currentCell, setCurrentCell] = useState<{participantId: number, indicatorCode: string} | null>(null);
+  
+  // Дополнительная защита фокуса
+  useEffect(() => {
+    if (currentCell) {
+      const focusProtection = setInterval(() => {
+        const activeElement = document.activeElement as HTMLInputElement;
+        const isInputFocused = activeElement && activeElement.tagName === 'INPUT' && activeElement.type === 'number';
+        
+        if (!isInputFocused) {
+          // Пытаемся найти и сфокусировать активную ячейку
+          const cellElement = document.querySelector(`[data-participant-id="${currentCell.participantId}"][data-indicator-code="${currentCell.indicatorCode}"]`);
+          if (cellElement) {
+            const inputElement = cellElement.querySelector('input[type="number"]') as HTMLInputElement;
+            if (inputElement) {
+              inputElement.focus();
+              inputElement.select();
+              if (import.meta.env.DEV) {
+                console.log('Form008: Focus protection - restored focus to active cell');
+              }
+            }
+          }
+        }
+      }, 2000); // Проверяем каждые 2 секунды
+
+      return () => {
+        clearInterval(focusProtection);
+      };
+    }
+  }, [currentCell]);
+
+  // Обработчик клика для предотвращения потери фокуса
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (currentCell) {
+        const target = e.target as HTMLElement;
+        const isInputClick = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'number';
+        const isCellClick = target.closest(`[data-participant-id="${currentCell.participantId}"][data-indicator-code="${currentCell.indicatorCode}"]`);
+        
+        // Если клик не по полю ввода и не по активной ячейке, восстанавливаем фокус
+        if (!isInputClick && !isCellClick) {
+          setTimeout(() => {
+            const cellElement = document.querySelector(`[data-participant-id="${currentCell.participantId}"][data-indicator-code="${currentCell.indicatorCode}"]`);
+            if (cellElement) {
+              const inputElement = cellElement.querySelector('input[type="number"]') as HTMLInputElement;
+              if (inputElement) {
+                inputElement.focus();
+                inputElement.select();
+                if (import.meta.env.DEV) {
+                  console.log('Form008: Click outside - restored focus to active cell');
+                }
+              }
+            }
+          }, 100);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [currentCell]);
+  
+  // Функция навигации по ячейкам
+  const handleCellNavigation = (direction: 'up' | 'down' | 'left' | 'right') => {
+    if (import.meta.env.DEV) {
+      console.log('Form008: handleCellNavigation called with direction:', direction);
+    }
+    
+    if (!data?.participants || !data?.indicators) {
+      if (import.meta.env.DEV) {
+        console.log('Form008: No data available for navigation');
+      }
+      return;
+    }
+    
+    const participants = data.participants;
+    const indicators = data.indicators;
+    
+    if (!currentCell) {
+      // Если нет текущей ячейки, начинаем с первой
+      setCurrentCell({ participantId: participants[0].id, indicatorCode: indicators[0].code });
+      // Прокручиваем к первой ячейке
+      setTimeout(() => scrollToCurrentCell(participants[0].id, indicators[0].code), 100);
+      return;
+    }
+    
+    const currentParticipantIndex = participants.findIndex(p => p.id === currentCell.participantId);
+    const currentIndicatorIndex = indicators.findIndex(i => i.code === currentCell.indicatorCode);
+    
+    if (currentParticipantIndex === -1 || currentIndicatorIndex === -1) return;
+    
+    let newParticipantIndex = currentParticipantIndex;
+    let newIndicatorIndex = currentIndicatorIndex;
+    
+    switch (direction) {
+      case 'up':
+        newParticipantIndex = Math.max(0, currentParticipantIndex - 1);
+        break;
+      case 'down':
+        newParticipantIndex = Math.min(participants.length - 1, currentParticipantIndex + 1);
+        break;
+      case 'left':
+        newIndicatorIndex = Math.max(0, currentIndicatorIndex - 1);
+        break;
+      case 'right':
+        newIndicatorIndex = Math.min(indicators.length - 1, currentIndicatorIndex + 1);
+        break;
+    }
+    
+    const newParticipantId = participants[newParticipantIndex].id;
+    const newIndicatorCode = indicators[newIndicatorIndex].code;
+    
+    // Сначала снимаем фокус с текущей ячейки
+    if (currentCell) {
+      const oldCellElement = document.querySelector(`[data-participant-id="${currentCell.participantId}"][data-indicator-code="${currentCell.indicatorCode}"]`);
+      if (oldCellElement) {
+        const oldInputElement = oldCellElement.querySelector('input[type="number"]') as HTMLInputElement;
+        if (oldInputElement) {
+          oldInputElement.blur();
+        }
+      }
+    }
+    
+    setCurrentCell({
+      participantId: newParticipantId,
+      indicatorCode: newIndicatorCode
+    });
+    
+    if (import.meta.env.DEV) {
+      console.log('Form008: Navigation completed', {
+        from: currentCell,
+        to: { participantId: newParticipantId, indicatorCode: newIndicatorCode },
+        direction
+      });
+    }
+    
+    // Прокручиваем к новой ячейке с небольшой задержкой
+    setTimeout(() => scrollToCurrentCell(newParticipantId, newIndicatorCode), 150);
+    
+    // Дополнительно принудительно фокусируемся на новой ячейке
+    setTimeout(() => {
+      const cellElement = document.querySelector(`[data-participant-id="${newParticipantId}"][data-indicator-code="${newIndicatorCode}"]`);
+      if (cellElement) {
+        const inputElement = cellElement.querySelector('input[type="number"]') as HTMLInputElement;
+        if (inputElement) {
+          inputElement.focus();
+          inputElement.select();
+          if (import.meta.env.DEV) {
+            console.log('Form008: Force focused on new cell after navigation');
+          }
+        }
+      }
+    }, 200);
+  };
+
+  // Функция прокрутки к текущей ячейке
+  const scrollToCurrentCell = (participantId: number, indicatorCode: string) => {
+    const cellElement = document.querySelector(`[data-participant-id="${participantId}"][data-indicator-code="${indicatorCode}"]`);
+    if (cellElement) {
+      cellElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center',
+        inline: 'center'
+      });
+      
+      // Убираем дублирующую логику фокуса - это делает PlotInputs
+      if (import.meta.env.DEV) {
+        console.log('Form008: Scrolled to cell', participantId, indicatorCode);
+      }
+    }
+  };
 
   // Объединяем данные формы с данными статистики
   const enhancedForm008Data = useMemo(() => {
@@ -1005,6 +1180,10 @@ export const Form008: React.FC = () => {
           условия испытания сохраняются через 2 секунды после изменения любого поля.
           Участников: <strong>{data.participants.length}</strong>, Показателей: <strong>{data.indicators.length}</strong>
         </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          ⌨️ <strong>Навигация:</strong> Используйте стрелки ↑↓←→ для перемещения между ячейками или кликните на любую ячейку. 
+          Поле ввода автоматически получает фокус для немедленного ввода значений. Текущая ячейка выделена синей рамкой.
+        </Typography>
       </Alert>
 
       {/* Table */}
@@ -1109,7 +1288,21 @@ export const Form008: React.FC = () => {
                   {data.indicators.map((indicator) => (
                     <TableCell
                       key={indicator.code}
-                      sx={{ bgcolor: participant.is_standard ? 'warning.50' : 'inherit' }}
+                      data-participant-id={participant.id}
+                      data-indicator-code={indicator.code}
+                      onClick={() => {
+                        setCurrentCell({ participantId: participant.id, indicatorCode: indicator.code });
+                        setTimeout(() => scrollToCurrentCell(participant.id, indicator.code), 100);
+                      }}
+                      sx={{ 
+                        bgcolor: participant.is_standard ? 'warning.50' : 'inherit',
+                        cursor: 'pointer',
+                        ...(currentCell?.participantId === participant.id && currentCell?.indicatorCode === indicator.code && {
+                          border: '2px solid',
+                          borderColor: 'primary.main',
+                          bgcolor: 'primary.50',
+                        })
+                      }}
                     >
                       <PlotInputs
                         value={formData[participant.id]?.[indicator.code] || null}
@@ -1118,6 +1311,10 @@ export const Form008: React.FC = () => {
                         indicatorName={indicator.name}
                         disabled={isSaving || isReadOnly}
                         validationRules={indicator.validation_rules}
+                        onNavigate={handleCellNavigation}
+                        participantId={participant.id}
+                        indicatorCode={indicator.code}
+                        isActive={currentCell?.participantId === participant.id && currentCell?.indicatorCode === indicator.code}
                       />
                     </TableCell>
                   ))}
