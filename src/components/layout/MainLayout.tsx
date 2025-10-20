@@ -31,7 +31,7 @@ import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
   Assignment as AssignmentIcon,
-  Gavel as GavelIcon,
+  TableChart as TableChartIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +50,7 @@ const navItems: NavItem[] = [
   { text: 'Заявки на испытания', icon: <DescriptionIcon />, path: '/applications' },
   { text: 'Планы испытаний', icon: <AssignmentIcon />, path: '/trial-plans' },
   { text: 'Испытания по областям', icon: <ScienceIcon />, path: '/trials' },
-  { text: 'Годовые таблицы решений', icon: <GavelIcon />, path: '/decisions/annual-tables' },
+  { text: 'Таблица методологии', icon: <TableChartIcon />, path: '/methodology' },
   { text: 'Реестр селекционных достижений', icon: <FolderIcon />, path: '/sort-records' },
   { text: 'Справочники', icon: <MenuBookIcon />, path: '/dictionaries' },
 ];

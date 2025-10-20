@@ -18,8 +18,7 @@ import { TrialsList } from './pages/Trials/TrialsList';
 import { MyTasks } from './pages/Trials/MyTasks';
 import { Form008 } from './pages/Trials/Form008';
 import { ResultsEntry } from './pages/Results/ResultsEntry';
-import { AnnualTablesList } from './pages/AnnualDecisions/AnnualTablesList';
-import { AnnualTableView } from './pages/AnnualDecisions/AnnualTableView';
+import { MethodologyView, MethodologyTest } from './pages/Methodology';
 import { DictionariesMain } from './pages/Dictionaries/DictionariesMain';
 import { CultureGroupsPage } from './pages/Dictionaries/CultureGroupsPage';
 import { CulturesPage } from './pages/Dictionaries/CulturesPage';
@@ -132,12 +131,10 @@ function App() {
                       <Route path=":id/results/add" element={<ResultsEntry />} />
                     </Route>
 
-                    {/* Annual Decisions */}
-                    <Route path="decisions">
-                      <Route path="annual-tables">
-                        <Route index element={<AnnualTablesList />} />
-                        <Route path=":id" element={<AnnualTableView />} />
-                      </Route>
+                    {/* Methodology Table */}
+                    <Route path="methodology">
+                      <Route index element={<MethodologyView />} />
+                      <Route path="test" element={<MethodologyTest />} />
                     </Route>
 
                     {/* Results */}

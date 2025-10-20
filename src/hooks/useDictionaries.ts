@@ -19,8 +19,15 @@ export const dictionaryKeys = {
 export const useOblasts = () => {
   return useQuery({
     queryKey: dictionaryKeys.oblasts,
-    queryFn: () => dictionariesService.oblasts.getAll(),
+    queryFn: () => {
+      return dictionariesService.oblasts.getAll();
+    },
     staleTime: 1000 * 60 * 60, // 1 hour
+    onError: (error) => {
+      console.error('❌ Ошибка загрузки областей:', error);
+    },
+    onSuccess: (data) => {
+    },
   });
 };
 
@@ -117,8 +124,15 @@ export const useDeleteIndicator = () => {
 export const useCultureGroups = () => {
   return useQuery({
     queryKey: dictionaryKeys.cultureGroups,
-    queryFn: () => dictionariesService.cultureGroups.getAll(),
+    queryFn: () => {
+      return dictionariesService.cultureGroups.getAll();
+    },
     staleTime: 1000 * 60 * 60, // 1 hour
+    onError: (error) => {
+      console.error('❌ Ошибка загрузки групп культур:', error);
+    },
+    onSuccess: (data) => {
+    },
   });
 };
 
@@ -185,25 +199,41 @@ export const useSyncAllSortRecords = () => {
 
 // Combined hook for all dictionaries (convenience)
 export const useDictionaries = () => {
-  const { data: oblasts = [] } = useOblasts();
+  const { data: oblasts = [], isLoading: oblastsLoading, error: oblastsError } = useOblasts();
   const { data: regions = [] } = useRegions();
   const { data: climateZones = [] } = useClimateZones();
   const { data: indicators = [] } = useIndicators();
-  const { data: cultureGroups = [] } = useCultureGroups();
+  const { data: cultureGroups = [], isLoading: cultureGroupsLoading, error: cultureGroupsError } = useCultureGroups();
   const { data: originators = [] } = useOriginators();
   const { data: trialTypes = [] } = useTrialTypes();
 
   // Загрузка всех культур (без фильтра по группе)
-  const { data: cultures = [] } = useQuery({
+  const { data: cultures = [], isLoading: culturesLoading, error: culturesError } = useQuery({
     queryKey: ['cultures', 'all'],
-    queryFn: () => dictionariesService.cultures.getAll(),
+    queryFn: () => {
+      return dictionariesService.cultures.getAll();
+    },
     staleTime: 1000 * 60 * 60, // 1 hour
     enabled: true, // Всегда загружаем культуры
+    onError: (error) => {
+      console.error('❌ Ошибка загрузки культур:', error);
+    },
+    onSuccess: (data) => {
+    },
   });
 
   // Пользователи пока не загружаются (endpoint может не существовать)
   // Если нужно - добавить отдельный хук useUsers()
   const users: any[] = [];
+
+  // Отладка состояния загрузки
+  if (import.meta.env.DEV) {
+    // console.log('🔍 useDictionaries состояние:', {
+    //   oblasts: { data: oblasts, loading: oblastsLoading, error: oblastsError },
+    //   cultures: { data: cultures, loading: culturesLoading, error: culturesError },
+    //   cultureGroups: { data: cultureGroups, loading: cultureGroupsLoading, error: cultureGroupsError },
+    // });
+  }
 
   return {
     oblasts,
@@ -215,5 +245,16 @@ export const useDictionaries = () => {
     originators,
     trialTypes,
     users,
+    // Добавляем состояние загрузки для отладки
+    loading: {
+      oblasts: oblastsLoading,
+      cultures: culturesLoading,
+      cultureGroups: cultureGroupsLoading,
+    },
+    errors: {
+      oblasts: oblastsError,
+      cultures: culturesError,
+      cultureGroups: cultureGroupsError,
+    },
   };
 };
