@@ -10,9 +10,6 @@ import {
   Alert,
   Box,
   Divider,
-  Stack,
-  Paper,
-  LinearProgress,
 } from '@mui/material';
 import {
   CheckCircle as CheckIcon,
@@ -21,41 +18,45 @@ import {
   PlayArrow as ContinueIcon,
   ErrorOutline as ErrorIcon,
   Timeline as TimelineIcon,
+  HourglassEmpty as HourglassIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import type { RegionalStatusItem, PlannedDistributionStatus } from '@/types/api.types';
-import {
-  getTrialStatusMuiColor,
-  getDecisionMuiColor,
-  getDecisionLabel,
-} from '@/utils/statusHelpers';
+import type { OblastStatus, Oblast, OblastStatusType } from '@/types/api.types';
 
 interface RegionalProgressProps {
-  regionalStatus: RegionalStatusItem[];
+  oblastStatuses: OblastStatus[];
+  oblastData: Oblast[];
   applicationId?: number;
   isLoading?: boolean;
 }
 
-// Статус PlannedDistribution → UI
-const getDistributionStatusConfig = (status: PlannedDistributionStatus) => {
+// Статус области → UI
+const getOblastStatusConfig = (status: OblastStatusType) => {
   switch (status) {
     case 'planned':
       return { icon: <PendingIcon />, label: 'Запланировано', color: 'default' as const };
-    case 'in_progress':
-      return { icon: <TimelineIcon />, label: 'Испытания идут', color: 'info' as const };
+    case 'trial_plan_created':
+      return { icon: <HourglassIcon />, label: 'План испытаний создан', color: 'info' as const };
+    case 'trial_created':
+      return { icon: <TimelineIcon />, label: 'Испытание создано', color: 'info' as const };
+    case 'trial_completed':
+      return { icon: <CheckIcon />, label: 'Испытание завершено', color: 'success' as const };
+    case 'decision_pending':
+      return { icon: <HourglassIcon />, label: 'Ожидает решения', color: 'warning' as const };
     case 'approved':
       return { icon: <CheckIcon />, label: 'Одобрено', color: 'success' as const };
+    case 'continue':
+      return { icon: <ContinueIcon />, label: 'Продолжить', color: 'info' as const };
     case 'rejected':
       return { icon: <ErrorIcon />, label: 'Отклонено', color: 'error' as const };
-    case 'cancelled':
-      return { icon: <CancelIcon />, label: 'Отменено', color: 'default' as const };
     default:
       return { icon: <PendingIcon />, label: 'Не определен', color: 'default' as const };
   }
 };
 
 export const RegionalProgress: React.FC<RegionalProgressProps> = ({
-  regionalStatus,
+  oblastStatuses,
+  oblastData,
   applicationId,
   isLoading = false,
 }) => {
@@ -64,27 +65,29 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
   if (isLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <LinearProgress sx={{ width: '100%' }} />
+        <Typography>Загрузка...</Typography>
       </Box>
     );
   }
 
-  if (!regionalStatus || regionalStatus.length === 0) {
+  if (!oblastStatuses || oblastStatuses.length === 0) {
     return (
       <Alert severity="info">
-        Заявка еще не распределена по регионам. Необходимо распределить заявку для создания испытаний.
+        Заявка еще не распределена по областям. Необходимо распределить заявку для создания испытаний.
       </Alert>
     );
   }
 
   // Подсчет статистики
   const stats = {
-    total: regionalStatus.length,
-    planned: regionalStatus.filter(r => r.status === 'planned').length,
-    inProgress: regionalStatus.filter(r => r.status === 'in_progress').length,
-    approved: regionalStatus.filter(r => r.status === 'approved').length,
-    rejected: regionalStatus.filter(r => r.status === 'rejected').length,
-    totalTrials: regionalStatus.reduce((sum, r) => sum + r.trials.length, 0),
+    total: oblastStatuses.length,
+    planned: oblastStatuses.filter(o => o.status === 'planned').length,
+    trialPlanCreated: oblastStatuses.filter(o => o.status === 'trial_plan_created').length,
+    trialCreated: oblastStatuses.filter(o => o.status === 'trial_created').length,
+    trialCompleted: oblastStatuses.filter(o => o.status === 'trial_completed').length,
+    decisionPending: oblastStatuses.filter(o => o.status === 'decision_pending').length,
+    approved: oblastStatuses.filter(o => o.status === 'approved').length,
+    rejected: oblastStatuses.filter(o => o.status === 'rejected').length,
   };
 
   return (
@@ -92,15 +95,23 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
       {/* Статистика */}
       <Alert severity="info" sx={{ mb: 3 }}>
         <Typography variant="body2">
-          Распределено по <strong>{stats.total}</strong> регион(ам). 
-          Создано испытаний: <strong>{stats.totalTrials}</strong>
+          Распределено по <strong>{stats.total}</strong> област(ям).
         </Typography>
         <Box sx={{ mt: 1, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {stats.planned > 0 && (
             <Chip label={`Запланировано: ${stats.planned}`} size="small" />
           )}
-          {stats.inProgress > 0 && (
-            <Chip label={`В процессе: ${stats.inProgress}`} size="small" color="info" />
+          {stats.trialPlanCreated > 0 && (
+            <Chip label={`План создан: ${stats.trialPlanCreated}`} size="small" color="info" />
+          )}
+          {stats.trialCreated > 0 && (
+            <Chip label={`Испытание создано: ${stats.trialCreated}`} size="small" color="info" />
+          )}
+          {stats.trialCompleted > 0 && (
+            <Chip label={`Завершено: ${stats.trialCompleted}`} size="small" color="success" />
+          )}
+          {stats.decisionPending > 0 && (
+            <Chip label={`Ожидает решения: ${stats.decisionPending}`} size="small" color="warning" />
           )}
           {stats.approved > 0 && (
             <Chip label={`Одобрено: ${stats.approved}`} size="small" color="success" />
@@ -111,17 +122,14 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
         </Box>
       </Alert>
 
-      {/* Карточки регионов */}
+      {/* Карточки областей */}
       <Grid container spacing={2}>
-        {regionalStatus.map((region) => {
-          const statusConfig = getDistributionStatusConfig(region.status);
-          const hasTrials = region.trials.length > 0;
-          const latestTrial = region.trials.length > 0 
-            ? region.trials[region.trials.length - 1] 
-            : null;
+        {oblastStatuses.map((oblastStatus) => {
+          const statusConfig = getOblastStatusConfig(oblastStatus.status);
+          const oblast = oblastData.find(o => o.id === oblastStatus.oblast_id);
 
           return (
-            <Grid item xs={12} md={6} lg={4} key={region.region_id}>
+            <Grid item xs={12} md={6} lg={4} key={oblastStatus.oblast_id}>
               <Card
                 sx={{
                   height: '100%',
@@ -129,31 +137,27 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
                   flexDirection: 'column',
                   border: '2px solid',
                   borderColor:
-                    region.status === 'approved'
+                    oblastStatus.status === 'approved'
                       ? 'success.main'
-                      : region.status === 'rejected'
+                      : oblastStatus.status === 'rejected'
                       ? 'error.main'
-                      : region.status === 'in_progress'
+                      : oblastStatus.status === 'trial_created' || oblastStatus.status === 'trial_completed'
                       ? 'info.main'
                       : 'divider',
                 }}
               >
                 <CardContent sx={{ flexGrow: 1 }}>
-                  {/* Заголовок - Регион */}
+                  {/* Заголовок - Область */}
                   <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
                     <Typography variant="h6" color="primary">
-                      {region.oblast_name}
+                      {oblast?.name || `Область #${oblastStatus.oblast_id}`}
                     </Typography>
                     {statusConfig.icon}
                   </Box>
 
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    <strong>ГСУ:</strong> {region.region_name}
-                  </Typography>
-
                   <Divider sx={{ my: 2 }} />
 
-                  {/* Статус PlannedDistribution */}
+                  {/* Статус */}
                   <Box sx={{ mb: 2 }}>
                     <Chip
                       icon={statusConfig.icon}
@@ -164,151 +168,81 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
                     />
                   </Box>
 
-                  {/* Период испытаний */}
-                  {(region.year_started || region.year_completed) && (
+                  {/* Информация о плане испытаний */}
+                  {oblastStatus.trial_plan_id && (
                     <Box sx={{ mb: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
                       <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                        ПЕРИОД ИСПЫТАНИЙ
+                        ПЛАН ИСПЫТАНИЙ
                       </Typography>
                       <Typography variant="body2">
-                        {region.year_started && region.year_completed && region.year_started !== region.year_completed ? (
-                          <>
-                            <strong>{region.year_started}-{region.year_completed}</strong>
-                            {region.years_count && ` (${region.years_count} ${region.years_count === 1 ? 'год' : region.years_count < 5 ? 'года' : 'лет'})`}
-                          </>
-                        ) : region.year_started && region.year_completed && region.year_started === region.year_completed ? (
-                          <>
-                            <strong>{region.year_started}</strong> (1 год)
-                          </>
-                        ) : region.year_started ? (
-                          <>Начато: <strong>{region.year_started}</strong></>
-                        ) : null}
+                        ID плана: <strong>#{oblastStatus.trial_plan_id}</strong>
                       </Typography>
                     </Box>
                   )}
 
-                  {/* История испытаний по годам */}
-                  {hasTrials && (
-                    <Box sx={{ mt: 2 }}>
+                  {/* Информация об испытании */}
+                  {oblastStatus.trial_id && (
+                    <Box sx={{ mb: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
                       <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                        ИСТОРИЯ ИСПЫТАНИЙ
+                        ИСПЫТАНИЕ
                       </Typography>
-                      <Stack spacing={1} sx={{ mt: 1 }}>
-                        {region.trials.map((trial, index) => {
-                          const isLast = index === region.trials.length - 1;
-                          return (
-                            <Paper
-                              key={trial.trial_id}
-                              variant="outlined"
-                              sx={{
-                                p: 1.5,
-                                bgcolor: isLast ? 'action.selected' : 'background.paper',
-                                borderLeft: '4px solid',
-                                borderLeftColor: trial.decision
-                                  ? trial.decision === 'approved'
-                                    ? 'success.main'
-                                    : trial.decision === 'rejected'
-                                    ? 'error.main'
-                                    : 'info.main'
-                                  : 'grey.300',
-                              }}
-                            >
-                              <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                                <Typography variant="body2" fontWeight="medium">
-                                  📅 {trial.year || new Date(trial.start_date).getFullYear()} год
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  Trial #{trial.trial_id}
-                                </Typography>
-                              </Box>
-
-                              <Box display="flex" gap={0.5} flexWrap="wrap" mt={1}>
-                                <Chip
-                                  label={trial.status}
-                                  color={getTrialStatusMuiColor(trial.status)}
-                                  size="small"
-                                  sx={{ fontSize: '0.7rem', height: 20 }}
-                                />
-                                {trial.decision && (
-                                  <Chip
-                                    icon={
-                                      trial.decision === 'approved' ? <CheckIcon /> :
-                                      trial.decision === 'rejected' ? <ErrorIcon /> :
-                                      <ContinueIcon />
-                                    }
-                                    label={getDecisionLabel(trial.decision)}
-                                    color={getDecisionMuiColor(trial.decision)}
-                                    size="small"
-                                    sx={{ fontSize: '0.7rem', height: 20 }}
-                                  />
-                                )}
-                                {trial.laboratory_status === 'completed' && (
-                                  <Chip
-                                    label="🔬 Лаб. анализ"
-                                    color="success"
-                                    size="small"
-                                    sx={{ fontSize: '0.7rem', height: 20 }}
-                                  />
-                                )}
-                              </Box>
-
-                              {isLast && (
-                                <Typography variant="caption" color="primary" display="block" sx={{ mt: 0.5 }}>
-                                  Текущее испытание
-                                </Typography>
-                              )}
-                            </Paper>
-                          );
-                        })}
-                      </Stack>
+                      <Typography variant="body2">
+                        ID испытания: <strong>#{oblastStatus.trial_id}</strong>
+                      </Typography>
                     </Box>
                   )}
 
-                  {/* Параметры распределения (если нет испытаний) */}
-                  {!hasTrials && (
-                    <Box sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                  {/* Информация о решении */}
+                  {oblastStatus.decision_date && (
+                    <Box sx={{ mb: 2, p: 1.5, bgcolor: 'action.selected', borderRadius: 1 }}>
                       <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                        ПАРАМЕТРЫ РАСПРЕДЕЛЕНИЯ
+                        РЕШЕНИЕ
                       </Typography>
-                      {region.trial_type && (
+                      <Typography variant="body2" gutterBottom>
+                        Дата: <strong>{new Date(oblastStatus.decision_date).toLocaleDateString('ru-RU')}</strong>
+                      </Typography>
+                      {oblastStatus.decision_year && (
                         <Typography variant="body2" gutterBottom>
-                          <strong>Тип:</strong> {region.trial_type}
+                          Год: <strong>{oblastStatus.decision_year}</strong>
                         </Typography>
                       )}
-                      {region.planting_season && (
-                        <Typography variant="body2">
-                          <strong>Сезон:</strong>{' '}
-                          {region.planting_season === 'spring' ? 'Весенний' : 'Осенний'}
+                      {oblastStatus.decision_justification && (
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                          {oblastStatus.decision_justification}
                         </Typography>
                       )}
+                    </Box>
+                  )}
+
+                  {/* Если нет дополнительной информации */}
+                  {!oblastStatus.trial_plan_id && !oblastStatus.trial_id && !oblastStatus.decision_date && (
+                    <Box sx={{ mt: 2, p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Ожидается создание плана испытаний
+                      </Typography>
                     </Box>
                   )}
                 </CardContent>
 
                 <CardActions>
-                  {latestTrial ? (
+                  {oblastStatus.trial_id ? (
                     <Button
                       size="small"
-                      onClick={() => navigate(`/trials/${latestTrial.trial_id}`)}
+                      onClick={() => navigate(`/trials/${oblastStatus.trial_id}`)}
                     >
-                      Открыть Trial #{latestTrial.trial_id}
+                      Открыть испытание
+                    </Button>
+                  ) : oblastStatus.trial_plan_id ? (
+                    <Button
+                      size="small"
+                      onClick={() => navigate(`/trial-plans/${oblastStatus.trial_plan_id}`)}
+                    >
+                      Открыть план
                     </Button>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ px: 1, py: 0.5 }}>
-                      Ожидается создание испытания
+                      Ожидается создание
                     </Typography>
-                  )}
-
-                  {/* Кнопка создания нового Trial для следующего года */}
-                  {region.status === 'in_progress' && latestTrial?.decision === 'continue' && (
-                    <Button
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                      onClick={() => navigate(`/trials/new?region=${region.region_id}&application=${applicationId}`)}
-                    >
-                      + Создать {(latestTrial.year || new Date().getFullYear()) + 1}
-                    </Button>
                   )}
                 </CardActions>
               </Card>

@@ -112,6 +112,31 @@ export interface PlannedDistribution {
   year_completed?: number;    // Год завершения (если завершено)
 }
 
+export type OblastStatusType = 'planned' | 'trial_plan_created' | 'trial_created' | 'trial_completed' | 'decision_pending' | 'approved' | 'continue' | 'rejected';
+
+export interface OblastStatus {
+  oblast_id: number;
+  status: OblastStatusType;
+  trial_plan_id: number | null;
+  trial_id: number | null;
+  decision_date: string | null;
+  decision_justification: string | null;
+  decided_by_id: number | null;
+  decision_year: number | null;
+}
+
+export interface OblastStatusSummary {
+  total_oblasts: number;
+  planned: number;
+  trial_plan_created: number;
+  trial_created: number;
+  trial_completed: number;
+  decision_pending: number;
+  approved: number;
+  continue: number;
+  rejected: number;
+}
+
 export interface Application {
   id: number;
   application_number: string;
@@ -133,7 +158,9 @@ export interface Application {
   decisions_summary?: DecisionsSummary;
   missing_mandatory_documents: string[];
   is_ready_for_submission: boolean;
-  planned_distributions?: PlannedDistribution[]; // Новое поле!
+  planned_distributions?: PlannedDistribution[];
+  oblast_statuses?: OblastStatus[];
+  oblast_status_summary?: OblastStatusSummary;
   created_by: number;
   created_by_name?: string;
   created_at: string;

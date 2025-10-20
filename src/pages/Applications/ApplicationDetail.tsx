@@ -49,7 +49,6 @@ export const ApplicationDetail: React.FC = () => {
 
   const { data: application, isLoading } = useApplication(Number(id));
   const { data: trials } = useRegionalTrials(Number(id));
-  const { data: regionalStatus, isLoading: loadingRegionalStatus } = useRegionalStatus(Number(id)); // ⭐ Новый!
 
 
   if (isLoading) {
@@ -243,7 +242,7 @@ export const ApplicationDetail: React.FC = () => {
       <Paper sx={{ mb: 3 }}>
         <Tabs value={currentTab} onChange={(_, val) => setCurrentTab(val)}>
           <Tab label="Процесс" />
-          <Tab label="Испытания по регионам" />
+          <Tab label="Испытания по областям" />
           <Tab label="Показатели" />
         </Tabs>
 
@@ -254,19 +253,13 @@ export const ApplicationDetail: React.FC = () => {
           <ApplicationTimeline application={application} />
         </TabPanel>
 
-        {/* Tab 2: Regional Trials (created based on distributions) */}
+        {/* Tab 2: Trials by Oblasts */}
         <TabPanel value={currentTab} index={1}>
-          {loadingRegionalStatus ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <RegionalProgress 
-              regionalStatus={regionalStatus?.regions || []}
-              applicationId={application.id}
-              isLoading={loadingRegionalStatus}
-            />
-          )}
+          <RegionalProgress
+            oblastStatuses={application.oblast_statuses || []}
+            oblastData={application.target_oblasts_data || []}
+            applicationId={application.id}
+          />
         </TabPanel>
 
         {/* Tab 3: Indicators */}

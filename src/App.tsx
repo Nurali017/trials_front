@@ -18,7 +18,7 @@ import { TrialsList } from './pages/Trials/TrialsList';
 import { MyTasks } from './pages/Trials/MyTasks';
 import { Form008 } from './pages/Trials/Form008';
 import { ResultsEntry } from './pages/Results/ResultsEntry';
-import { MethodologyView, MethodologyTest } from './pages/Methodology';
+import { MethodologyContainer, MethodologyTest } from './pages/Methodology';
 import { DictionariesMain } from './pages/Dictionaries/DictionariesMain';
 import { CultureGroupsPage } from './pages/Dictionaries/CultureGroupsPage';
 import { CulturesPage } from './pages/Dictionaries/CulturesPage';
@@ -133,7 +133,7 @@ function App() {
 
                     {/* Methodology Table */}
                     <Route path="methodology">
-                      <Route index element={<MethodologyView />} />
+                      <Route index element={<MethodologyContainer />} />
                       <Route path="test" element={<MethodologyTest />} />
                     </Route>
 

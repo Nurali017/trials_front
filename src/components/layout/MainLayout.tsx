@@ -50,7 +50,7 @@ const navItems: NavItem[] = [
   { text: 'Заявки на испытания', icon: <DescriptionIcon />, path: '/applications' },
   { text: 'Планы испытаний', icon: <AssignmentIcon />, path: '/trial-plans' },
   { text: 'Испытания по областям', icon: <ScienceIcon />, path: '/trials' },
-  { text: 'Таблица методологии', icon: <TableChartIcon />, path: '/methodology' },
+  { text: 'Годовой отчет', icon: <TableChartIcon />, path: '/methodology' },
   { text: 'Реестр селекционных достижений', icon: <FolderIcon />, path: '/sort-records' },
   { text: 'Справочники', icon: <MenuBookIcon />, path: '/dictionaries' },
 ];
