@@ -15,6 +15,7 @@ import {
   Map as MapIcon,
   Business as BusinessIcon,
   Assessment as AssessmentIcon,
+  Science as ScienceIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useDictionaries } from '@/hooks/useDictionaries';
@@ -29,7 +30,7 @@ interface DictionaryCard {
 
 export const DictionariesMain: React.FC = () => {
   const navigate = useNavigate();
-  const { cultureGroups, cultures, oblasts, regions, indicators } = useDictionaries();
+  const { cultureGroups, cultures, oblasts, regions, indicators, originators } = useDictionaries();
 
   const dictionaries: DictionaryCard[] = [
     {
@@ -66,6 +67,13 @@ export const DictionariesMain: React.FC = () => {
       path: '/dictionaries/indicators',
       description: 'Показатели для измерений и анализа',
       count: indicators.length,
+    },
+    {
+      title: 'Оригинаторы',
+      icon: <ScienceIcon sx={{ fontSize: 40 }} />,
+      path: '/dictionaries/originators',
+      description: 'Справочник оригинаторов сортов',
+      count: originators.length,
     },
   ];
 

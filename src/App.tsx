@@ -25,6 +25,7 @@ import { CulturesPage } from './pages/Dictionaries/CulturesPage';
 import { RegionsPage } from './pages/Dictionaries/RegionsPage';
 import { OblastsPage } from './pages/Dictionaries/OblastsPage';
 import { IndicatorsPage } from './pages/Dictionaries/IndicatorsPage';
+import { OriginatorsPage } from './pages/Dictionaries/OriginatorsPage';
 import { SortsList } from './pages/SortRecords/SortsList';
 import { TrialPlansList } from './pages/TrialPlans';
 import TrialPlanDetail from './pages/TrialPlans/TrialPlanDetail';
@@ -164,6 +165,7 @@ function App() {
                       <Route path="regions" element={<RegionsPage />} />
                       <Route path="oblasts" element={<OblastsPage />} />
                       <Route path="indicators" element={<IndicatorsPage />} />
+                      <Route path="originators" element={<OriginatorsPage />} />
                     </Route>
 
                     {/* Catch all */}

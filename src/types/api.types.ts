@@ -337,8 +337,14 @@ export interface Culture {
 
 export interface Originator {
   id: number;
+  originator_id: number;
   name: string;
-  country: string;
+  code: number | null;
+  is_foreign: boolean;
+  is_nanoc: boolean;
+  synced_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Request types

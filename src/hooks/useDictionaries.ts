@@ -155,6 +155,44 @@ export const useOriginators = () => {
   });
 };
 
+// Create originator
+export const useCreateOriginator = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: Omit<Originator, 'id' | 'originator_id' | 'synced_at' | 'created_at' | 'updated_at'>) =>
+      dictionariesService.originators.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dictionaryKeys.originators });
+    },
+  });
+};
+
+// Update originator
+export const useUpdateOriginator = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<Originator> }) =>
+      dictionariesService.originators.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dictionaryKeys.originators });
+    },
+  });
+};
+
+// Delete originator
+export const useDeleteOriginator = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => dictionariesService.originators.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: dictionaryKeys.originators });
+    },
+  });
+};
+
 // Sort Records
 export const useSortRecords = (filters?: Record<string, any>, enabled: boolean = true) => {
   return useQuery({

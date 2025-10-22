@@ -168,12 +168,40 @@ export const dictionariesService = {
 
   // Originators
   originators: {
-    getAll: async () => {
-      const { data } = await apiClient.get<Originator[]>('/patents/originators/');
+    getAll: async (params?: {
+      search?: string;
+      is_foreign?: boolean;
+      is_nanoc?: boolean;
+      has_code?: boolean;
+      ordering?: string;
+    }) => {
+      const { data } = await apiClient.get<Originator[]>('/patents/ariginators/', { params });
       return data;
     },
     getById: async (id: number) => {
-      const { data } = await apiClient.get<Originator>(`/patents/originators/${id}/`);
+      const { data } = await apiClient.get<Originator>(`/patents/ariginators/${id}/`);
+      return data;
+    },
+    create: async (payload: Omit<Originator, 'id' | 'originator_id' | 'synced_at' | 'created_at' | 'updated_at'>) => {
+      const { data } = await apiClient.post<Originator>('/patents/ariginators/', payload);
+      return data;
+    },
+    update: async (id: number, payload: Partial<Originator>) => {
+      const { data } = await apiClient.patch<Originator>(`/patents/ariginators/${id}/`, payload);
+      return data;
+    },
+    delete: async (id: number) => {
+      await apiClient.delete(`/patents/ariginators/${id}/`);
+    },
+    getStatistics: async () => {
+      const { data } = await apiClient.get<{
+        total_count: number;
+        foreign_count: number;
+        domestic_count: number;
+        nanoc_count: number;
+        with_code_count: number;
+        without_code_count: number;
+      }>('/patents/ariginators/statistics/');
       return data;
     },
   },

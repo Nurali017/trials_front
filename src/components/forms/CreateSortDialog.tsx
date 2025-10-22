@@ -18,12 +18,19 @@ import {
   Alert,
   IconButton,
   Typography,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
 } from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { usePatentsCultureGroups, usePatentsCultures } from '@/hooks/usePatents';
-import { patentsService } from '@/api/patents';
+import { useOriginators } from '@/hooks/useDictionaries';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
+import { OriginatorDialog } from './OriginatorDialog';
+import type { OriginatorWithPercentage } from '@/types/api.types';
 
 interface CreateSortDialogProps {
   open: boolean;
@@ -43,6 +50,10 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
   const [patentNis, setPatentNis] = useState(false);
   const [note, setNote] = useState('');
 
+  // Originators state
+  const [originators, setOriginators] = useState<OriginatorWithPercentage[]>([]);
+  const [originatorDialogOpen, setOriginatorDialogOpen] = useState(false);
+
   // Loading and error states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +63,29 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
   const { data: cultures = [], isLoading: culturesLoading } = usePatentsCultures(
     selectedGroup ? { group: selectedGroup } : undefined
   );
+  const { data: originatorsList = [] } = useOriginators();
+
+  const handleAddOriginator = (originator: OriginatorWithPercentage) => {
+    // Check if total percentage would exceed 100%
+    const currentTotal = originators.reduce((sum, o) => sum + o.percentage, 0);
+    if (currentTotal + originator.percentage > 100) {
+      setError('Общий процент оригинаторов не может превышать 100%');
+      return;
+    }
+
+    // Check if originator already exists
+    if (originators.some(o => o.ariginator_id === originator.ariginator_id)) {
+      setError('Этот оригинатор уже добавлен');
+      return;
+    }
+
+    setOriginators([...originators, originator]);
+    setError(null);
+  };
+
+  const handleRemoveOriginator = (index: number) => {
+    setOriginators(originators.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     // Validation
@@ -62,6 +96,13 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
 
     if (!selectedCulture) {
       setError('Выберите культуру');
+      return;
+    }
+
+    // Validate originators percentage
+    const totalPercentage = originators.reduce((sum, o) => sum + o.percentage, 0);
+    if (originators.length > 0 && totalPercentage !== 100) {
+      setError('Общий процент оригинаторов должен составлять 100%');
       return;
     }
 
@@ -81,16 +122,51 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
         patent_nis: patentNis,
         note: note.trim() || null,
         status: 4, // Auto status
+        ariginators: originators.length > 0 ? originators : undefined,
       };
 
-      // Call API
-      await patentsService.createSort(sortData);
+      // Подготавливаем данные для отправки
+      const requestData = {
+        name: sortData.name,
+        public_code: sortData.code || null,
+        patents_culture_id: sortData.culture,
+        applicant: sortData.applicant || '',
+        patent_nis: sortData.patent_nis || false,
+        note: sortData.note || '',
+        // Передаем оригинаторов, если Django API поддерживает
+        originators: originators.length > 0 ? originators.map(o => ({
+          originator_id: o.ariginator_id,
+          percentage: o.percentage
+        })) : []
+      };
 
+      console.log('📤 Отправляем данные на Django API:', requestData);
+      console.log('🎯 Culture ID:', sortData.culture);
+      console.log('👥 Оригинаторы:', originators);
+
+      // Call Django API to create sort
+      const response = await fetch('http://localhost:8001/api/sort-records/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Token ${localStorage.getItem('auth_token') || ''}`,
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Ошибка при создании сорта');
+      }
+
+      const createdSort = await response.json();
+      console.log('Сорт создан:', createdSort);
+      
       // Show success message
       enqueueSnackbar('Сорт успешно создан!', { variant: 'success' });
 
       // Invalidate queries to refresh the list
-      queryClient.invalidateQueries({ queryKey: ['patents-sorts'] });
+      queryClient.invalidateQueries({ queryKey: ['sort-records'] });
 
       // Reset form and close
       handleClose();
@@ -112,6 +188,8 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
     setApplicant('');
     setPatentNis(false);
     setNote('');
+    setOriginators([]);
+    setOriginatorDialogOpen(false);
     setError(null);
     onClose();
   };
@@ -230,6 +308,60 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
             rows={3}
             placeholder="Дополнительная информация о сорте"
           />
+
+          {/* Originators Section */}
+          <Box>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="h6" component="div">
+                Оригинаторы
+              </Typography>
+              <Button
+                variant="outlined"
+                startIcon={<AddIcon />}
+                onClick={() => setOriginatorDialogOpen(true)}
+                size="small"
+              >
+                Добавить оригинатора
+              </Button>
+            </Box>
+
+            {originators.length > 0 ? (
+              <List>
+                {originators.map((originator, index) => {
+                  const originatorData = originatorsList.find(o => o.id === originator.ariginator_id);
+                  return (
+                    <ListItem key={index} divider>
+                      <ListItemText
+                        primary={originatorData?.name || `Оригинатор #${originator.ariginator_id}`}
+                        secondary={`${originator.percentage}%`}
+                      />
+                      <ListItemSecondaryAction>
+                        <IconButton
+                          edge="end"
+                          onClick={() => handleRemoveOriginator(index)}
+                          color="error"
+                          size="small"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  );
+                })}
+                <Divider />
+                <ListItem>
+                  <ListItemText
+                    primary="Общий процент"
+                    secondary={`${originators.reduce((sum, o) => sum + o.percentage, 0)}%`}
+                  />
+                </ListItem>
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                Оригинаторы не добавлены
+              </Typography>
+            )}
+          </Box>
         </Stack>
       </DialogContent>
 
@@ -246,6 +378,13 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
           {isSubmitting ? 'Создание...' : 'Создать сорт'}
         </Button>
       </DialogActions>
+
+      {/* Originator Dialog */}
+      <OriginatorDialog
+        open={originatorDialogOpen}
+        onClose={() => setOriginatorDialogOpen(false)}
+        onAdd={handleAddOriginator}
+      />
     </Dialog>
   );
 };

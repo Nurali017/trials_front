@@ -4,4 +4,5 @@ export { CulturesPage } from './CulturesPage';
 export { RegionsPage } from './RegionsPage';
 export { OblastsPage } from './OblastsPage';
 export { IndicatorsPage } from './IndicatorsPage';
+export { OriginatorsPage } from './OriginatorsPage';
 
