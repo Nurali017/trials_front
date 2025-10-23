@@ -1088,7 +1088,7 @@ export interface IndicatorsByCultureResponse {
 
 // ============ STATISTICS AND CALCULATIONS TYPES ============
 
-export interface TrialStatistics {
+export interface TrialStatisticsExtended {
   lsd_095?: number;
   error_mean?: number;
   accuracy_percent?: number;

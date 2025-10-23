@@ -100,7 +100,7 @@ export const OriginatorsPage: React.FC = () => {
 
     const payload = {
       name: formData.name.trim(),
-      code: formData.code.trim() || null,
+      code: formData.code.trim() ? parseInt(formData.code.trim()) : null,
       is_foreign: formData.is_foreign,
       is_nanoc: formData.is_nanoc,
     };

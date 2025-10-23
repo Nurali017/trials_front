@@ -86,7 +86,7 @@ export const OriginatorDialog: React.FC<OriginatorDialogProps> = ({
                   <Autocomplete<Originator>
                     options={originators || []}
                     value={field.value}
-                    getOptionLabel={(option) => `${option.name}, ${option.country}`}
+                    getOptionLabel={(option) => `${option.name} (${option.is_foreign ? 'Иностранный' : 'Местный'})`}
                     onChange={(_, value) => field.onChange(value)}
                     renderInput={(params) => (
                       <TextField
@@ -99,7 +99,7 @@ export const OriginatorDialog: React.FC<OriginatorDialogProps> = ({
                     )}
                     renderOption={(props, option) => (
                       <li {...props} key={option.id}>
-                        {option.name}, {option.country}
+                        {option.name} ({option.is_foreign ? 'Иностранный' : 'Местный'})
                       </li>
                     )}
                   />

@@ -20,7 +20,6 @@ import type {
   RemoveIndicatorsRequest,
   IndicatorsByCultureResponse,
   Form008StatisticsResponse,
-  StatisticsPreviewRequest,
 } from '@/types/api.types';
 
 export const trialsService = {
@@ -162,11 +161,6 @@ export const trialsService = {
     return data;
   },
 
-  // Получить статистику формы 008 (включая авторасчет)
-  getForm008Statistics: async (trialId: number) => {
-    const { data } = await apiClient.get(`/trials/${trialId}/form008/statistics/`);
-    return data;
-  },
 
   // Обновить условия испытания
   updateTrialConditions: async (trialId: number, payload: Form008UpdateConditionsRequest) => {

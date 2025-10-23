@@ -38,7 +38,7 @@ export const dictionariesService = {
       
       while (nextUrl) {
         const queryParams = { ...params, page: pageNum, page_size: 100 };
-        const { data } = await apiClient.get<{ results: Region[]; next: string | null; count: number } | Region[]>(
+        const { data }: { data: { results: Region[]; next: string | null; count: number } | Region[] } = await apiClient.get<{ results: Region[]; next: string | null; count: number } | Region[]>(
           nextUrl.startsWith('http') ? nextUrl : '/regions/',
           nextUrl.startsWith('http') ? undefined : { params: queryParams }
         );
@@ -93,7 +93,7 @@ export const dictionariesService = {
       
       while (nextUrl) {
         const queryParams = { ...params, page: pageNum, page_size: 100 };
-        const { data } = await apiClient.get<{ results: any[]; next: string | null; count: number } | any[]>(
+        const { data }: { data: { results: any[]; next: string | null; count: number } | any[] } = await apiClient.get<{ results: any[]; next: string | null; count: number } | any[]>(
           nextUrl.startsWith('http') ? nextUrl : '/indicators/',
           nextUrl.startsWith('http') ? undefined : { params: queryParams }
         );

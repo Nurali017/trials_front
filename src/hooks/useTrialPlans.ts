@@ -6,7 +6,6 @@ import type {
   AddParticipantsRequest,
   DistributePlanRequest,
 } from '../api/trialPlans';
-import type { TrialPlanTrial } from '../types/api.types';
 
 // Query keys
 export const trialPlansKeys = {

@@ -6,7 +6,6 @@ import {
   Box,
   Chip,
   Divider,
-  Tooltip,
 } from '@mui/material';
 import { Nature as NatureIcon } from '@mui/icons-material';
 import type { SortRecord } from '@/types/api.types';
@@ -36,17 +35,6 @@ export const SortCard: React.FC<SortCardProps> = ({ sort, onClick }) => {
     }
   };
 
-  const getCultureCode = () => {
-    if (isPatentsSort(sort)) {
-      return sort.culture.code;
-    } else {
-      if (!sort.culture) return null;
-      if (typeof sort.culture === 'object') {
-        return sort.culture.code;
-      }
-      return null;
-    }
-  };
 
   const getCultureGroupName = () => {
     if (isPatentsSort(sort)) {

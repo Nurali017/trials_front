@@ -1,12 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { patentsService } from '@/api/patents';
 import type { 
-  PatentsSort, 
-  PatentsCulture, 
-  PatentsCultureGroup, 
-  PatentsOriginator, 
-  PatentsSearchParams, 
-  PatentsSearchResponse 
+  PatentsSearchParams
 } from '@/api/patents';
 
 // Query keys

@@ -36,9 +36,11 @@ import type { OriginatorWithPercentage } from '@/types/api.types';
 interface CreateSortDialogProps {
   open: boolean;
   onClose: () => void;
+  culture?: any;
+  onSuccess?: (newSortId: number) => void;
 }
 
-export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClose }) => {
+export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClose, culture: _culture, onSuccess }) => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -155,6 +157,11 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
 
       // Invalidate queries to refresh the list
       queryClient.invalidateQueries({ queryKey: ['sort-records'] });
+
+      // Call onSuccess callback if provided
+      if (onSuccess && createdSort?.id) {
+        onSuccess(createdSort.id);
+      }
 
       // Reset form and close
       handleClose();

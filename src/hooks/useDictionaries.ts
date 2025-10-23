@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { dictionariesService } from '@/api';
-import apiClient from '@/api/client';
-import type { Indicator } from '@/types/api.types';
+import type { Indicator, Originator } from '@/types/api.types';
 
 // Query keys
 export const dictionaryKeys = {
@@ -23,11 +22,6 @@ export const useOblasts = () => {
       return dictionariesService.oblasts.getAll();
     },
     staleTime: 1000 * 60 * 60, // 1 hour
-    onError: (error) => {
-      console.error('❌ Ошибка загрузки областей:', error);
-    },
-    onSuccess: (data) => {
-    },
   });
 };
 
@@ -128,11 +122,6 @@ export const useCultureGroups = () => {
       return dictionariesService.cultureGroups.getAll();
     },
     staleTime: 1000 * 60 * 60, // 1 hour
-    onError: (error) => {
-      console.error('❌ Ошибка загрузки групп культур:', error);
-    },
-    onSuccess: (data) => {
-    },
   });
 };
 
@@ -253,11 +242,6 @@ export const useDictionaries = () => {
     },
     staleTime: 1000 * 60 * 60, // 1 hour
     enabled: true, // Всегда загружаем культуры
-    onError: (error) => {
-      console.error('❌ Ошибка загрузки культур:', error);
-    },
-    onSuccess: (data) => {
-    },
   });
 
   // Пользователи пока не загружаются (endpoint может не существовать)
