@@ -30,6 +30,7 @@ import { useOriginators } from '@/hooks/useDictionaries';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import { OriginatorDialog } from './OriginatorDialog';
+import apiClient from '@/api/client';
 import type { OriginatorWithPercentage } from '@/types/api.types';
 
 interface CreateSortDialogProps {
@@ -145,21 +146,8 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
       console.log('👥 Оригинаторы:', originators);
 
       // Call Django API to create sort
-      const response = await fetch('http://localhost:8001/api/sort-records/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${localStorage.getItem('auth_token') || ''}`,
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка при создании сорта');
-      }
-
-      const createdSort = await response.json();
+      const response = await apiClient.post('/sort-records/', requestData);
+      const createdSort = response.data;
       console.log('Сорт создан:', createdSort);
       
       // Show success message
