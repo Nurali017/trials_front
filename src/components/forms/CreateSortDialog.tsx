@@ -138,7 +138,7 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
       // Подготавливаем данные для отправки
       const requestData = {
         name: sortData.name,
-        public_code: sortData.code || null,
+        code: sortData.code || null,
         patents_culture_id: sortData.culture,
         patent_nis: sortData.patent_nis || false,
         note: sortData.note || '',
@@ -192,7 +192,7 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
           const fieldErrors = Object.entries(errorData)
             .map(([field, messages]) => {
               const fieldName = field === 'patents_culture_id' ? 'Культура' : 
-                              field === 'public_code' ? 'Код сорта' :
+                              field === 'code' ? 'Код сорта' :
                               field === 'name' ? 'Название' : field;
               return `${fieldName}: ${Array.isArray(messages) ? messages.join(', ') : messages}`;
             })
