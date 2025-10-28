@@ -6,7 +6,6 @@ import {
   Typography,
   Box,
   Chip,
-  CircularProgress,
   Alert,
 } from '@mui/material';
 import {
@@ -15,10 +14,11 @@ import {
   CheckCircle as SuccessIcon,
   Cancel as ErrorIcon,
 } from '@mui/icons-material';
-import { useApplications, useApplicationStatistics } from '@/hooks/useApplications';
+import { useApplications, useApplicationStatistics, useCultureGroupsStatistics } from '@/hooks/useApplications';
 import { useTrials } from '@/hooks/useTrials';
 import { getApplicationStatusMuiColor, getApplicationStatusLabel } from '@/utils/statusHelpers';
 import { CardSkeleton } from '@/components/common/CardSkeleton';
+import CultureGroupsStatsCard from '@/components/summary/CultureGroupsStatsCard';
 import { useNavigate } from 'react-router-dom';
 
 const StatCard: React.FC<{
@@ -59,9 +59,16 @@ const StatCard: React.FC<{
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
+  // Get recent applications for display (limited to 10)
   const { data: recentApplications, isLoading: loadingApplications } = useApplications({
-    limit: 10,
+    page_size: 10,
   });
+
+  // Get statistics for accurate counts
+  const { data: statistics, isLoading: loadingStatistics } = useApplicationStatistics();
+
+  // Get culture groups statistics
+  const { data: cultureGroupsStats, isLoading: loadingCultureGroupsStats } = useCultureGroupsStatistics();
 
   const { data: activeTrials, isLoading: loadingTrials } = useTrials({
     status: 'active',
@@ -74,16 +81,13 @@ export const Dashboard: React.FC = () => {
 
   const trialsArray = Array.isArray(activeTrials)
     ? activeTrials
-    : activeTrials?.results || [];
+    : (activeTrials as any)?.results || [];
 
-  const totalApplications = applicationsArray.length || 0;
+  // Use statistics data for accurate counts
+  const totalApplications = statistics?.total || 0;
   const totalActiveTrials = trialsArray.length || 0;
-
-  // Count applications by status
-  const statusCounts = applicationsArray.reduce((acc, app) => {
-    acc[app.status] = (acc[app.status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const registeredCount = statistics?.by_status?.registered || 0;
+  const rejectedCount = statistics?.by_status?.rejected || 0;
 
   return (
     <Box>
@@ -95,7 +99,7 @@ export const Dashboard: React.FC = () => {
       </Typography>
 
       {/* Main Statistics */}
-      {loadingApplications || loadingTrials ? (
+      {loadingApplications || loadingTrials || loadingStatistics || loadingCultureGroupsStats ? (
         <CardSkeleton count={4} variant="standard" />
       ) : (
         <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -118,7 +122,7 @@ export const Dashboard: React.FC = () => {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Включено в реестр"
-              value={statusCounts?.registered || 0}
+              value={registeredCount}
               icon={<SuccessIcon />}
               color="#4CAF50"
             />
@@ -126,7 +130,7 @@ export const Dashboard: React.FC = () => {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               title="Отклонено"
-              value={statusCounts?.rejected || 0}
+              value={rejectedCount}
               icon={<ErrorIcon />}
               color="#F44336"
             />
@@ -266,7 +270,7 @@ export const Dashboard: React.FC = () => {
                 <Alert severity="info">Активных испытаний нет</Alert>
               ) : (
                 <Box>
-                  {trialsArray.slice(0, 5).filter(trial => trial && trial.sort_record_data).map((trial) => (
+                  {trialsArray.slice(0, 5).filter((trial: any) => trial && trial.sort_record_data).map((trial: any) => (
                     <Box
                       key={trial.id}
                       sx={{
@@ -302,6 +306,15 @@ export const Dashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Culture Groups Statistics */}
+      <Box sx={{ mt: 4 }}>
+        <CultureGroupsStatsCard
+          data={cultureGroupsStats}
+          isLoading={loadingCultureGroupsStats}
+          error={null}
+        />
+      </Box>
     </Box>
   );
 };

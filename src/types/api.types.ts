@@ -167,6 +167,20 @@ export interface Application {
   updated_at: string;
 }
 
+// Application filters interface
+export interface ApplicationFilters {
+  status?: ApplicationStatus;
+  patents_culture_id?: number;  // ID культуры из Patents Service
+  patents_group_id?: number;    // ID группы культур из Patents Service ✨ НОВОЕ
+  culture_group?: number;      // Локальный ID группы культур (fallback)
+  culture?: number;            // Локальный ID культуры (fallback)
+  search?: string;            // Поиск по номеру заявки или названию сорта
+  year?: number;              // Фильтр по году подачи заявки
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+}
+
 export type TrialCategory = 'mandatory' | 'additional' | 'special' | 'reproduction' | 'demonstration';
 export type PlantingSeason = 'spring' | 'autumn';
 
@@ -553,6 +567,25 @@ export interface ApplicationStatistics {
   by_status: Record<ApplicationStatus, number>;
   by_year: Record<string, number>;
   success_rate: number;
+}
+
+export interface CultureGroupStats {
+  id: number;
+  name: string;
+  code: string;
+  applications_count: number;
+  cultures_count: number;
+}
+
+export interface CultureGroupsStatisticsResponse {
+  total_applications: number;
+  total_culture_groups: number;
+  filters_applied?: {
+    year?: number;
+    status?: ApplicationStatus;
+    oblast?: number;
+  };
+  culture_groups: CultureGroupStats[];
 }
 
 export interface TrialStatistics {

@@ -12,13 +12,9 @@ import {
   TableRow,
   Chip,
   CircularProgress,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   IconButton,
   LinearProgress,
+  Pagination,
 } from '@mui/material';
 import { Add as AddIcon, Visibility as ViewIcon, Edit as EditIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -26,28 +22,41 @@ import { useApplications } from '@/hooks/useApplications';
 import { TableSkeleton } from '@/components/common/TableSkeleton';
 import { getApplicationStatusMuiColor, getApplicationStatusLabel, calculateProgress } from '@/utils/statusHelpers';
 import { formatDate } from '@/utils/dateHelpers';
-import type { ApplicationStatus } from '@/types/api.types';
+import ApplicationFiltersComponent from '@/components/forms/ApplicationFilters';
+import type { ApplicationStatus, ApplicationFilters } from '@/types/api.types';
 
 export const ApplicationsList: React.FC = () => {
   const navigate = useNavigate();
-  const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const { data: applications, isLoading } = useApplications({ page_size: 1000 });
-
-  // Handle both array and object responses
-  const applicationsArray = Array.isArray(applications)
-    ? applications
-    : applications?.results || [];
-
-  const filteredApplications = applicationsArray.filter((app) => {
-    const matchesStatus = !statusFilter || app.status === statusFilter;
-    const matchesSearch =
-      !searchQuery ||
-      app.application_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      app.sort_record_data.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
+  
+  // Filter states
+  const [filters, setFilters] = useState<ApplicationFilters>({
+    page: 1,
+    page_size: 20,
   });
+
+  const { data: applicationsData, isLoading } = useApplications(filters);
+
+  // Handle filters change
+  const handleFiltersChange = (newFilters: ApplicationFilters) => {
+    setFilters({
+      ...newFilters,
+      page: 1, // Reset to first page when filters change
+      page_size: filters.page_size,
+    });
+  };
+
+  // Handle page change
+  const handlePageChange = (_: React.ChangeEvent<unknown>, newPage: number) => {
+    setFilters(prev => ({ ...prev, page: newPage }));
+  };
+
+  // Handle reset filters
+  const handleResetFilters = () => {
+    setFilters({
+      page: 1,
+      page_size: 20,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -61,6 +70,10 @@ export const ApplicationsList: React.FC = () => {
       </Box>
     );
   }
+
+  const applications = applicationsData?.results || [];
+  const totalCount = applicationsData?.count || 0;
+  const totalPages = Math.ceil(totalCount / (filters.page_size || 20));
 
   return (
     <Box>
@@ -78,37 +91,11 @@ export const ApplicationsList: React.FC = () => {
       </Box>
 
       {/* Filters */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box display="flex" gap={2}>
-          <TextField
-            label="Поиск"
-            variant="outlined"
-            size="small"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            sx={{ flexGrow: 1 }}
-            placeholder="Поиск по номеру заявки или наименованию сорта"
-            helperText="Можно искать сорт по наименованию или селекционному номеру"
-          />
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Статус</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Статус"
-              onChange={(e) => setStatusFilter(e.target.value as ApplicationStatus)}
-            >
-              <MenuItem value="">Все</MenuItem>
-              <MenuItem value="draft">Черновик</MenuItem>
-              <MenuItem value="submitted">Создана</MenuItem>
-              <MenuItem value="distributed">Распределена</MenuItem>
-              <MenuItem value="in_progress">В испытаниях</MenuItem>
-              <MenuItem value="completed">Завершена</MenuItem>
-              <MenuItem value="registered">Включен в реестр</MenuItem>
-              <MenuItem value="rejected">Отклонен</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-      </Paper>
+      <ApplicationFiltersComponent
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        onReset={handleResetFilters}
+      />
 
       {/* Table */}
       <TableContainer component={Paper}>
@@ -126,7 +113,7 @@ export const ApplicationsList: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredApplications?.map((app) => {
+            {applications?.map((app) => {
               const progress = calculateProgress(
                 app.decisions_summary?.with_decision || 0,
                 app.decisions_summary?.total || 0
@@ -178,10 +165,34 @@ export const ApplicationsList: React.FC = () => {
         </Table>
       </TableContainer>
 
-      {filteredApplications?.length === 0 && (
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Box display="flex" justifyContent="center" mt={3}>
+          <Pagination
+            count={totalPages}
+            page={filters.page || 1}
+            onChange={handlePageChange}
+            color="primary"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
+
+      {/* Empty state */}
+      {applications?.length === 0 && (
         <Box textAlign="center" py={4}>
           <Typography variant="body1" color="text.secondary">
             Заявки не найдены
+          </Typography>
+        </Box>
+      )}
+
+      {/* Results info */}
+      {totalCount > 0 && (
+        <Box mt={2}>
+          <Typography variant="body2" color="text.secondary">
+            Показано {applications.length} из {totalCount} заявок
           </Typography>
         </Box>
       )}

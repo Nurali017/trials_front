@@ -141,28 +141,127 @@ export const dictionariesService = {
     },
   },
 
-  // Culture Groups
+  // Culture Groups (from Patents API)
   cultureGroups: {
     getAll: async () => {
-      const { data } = await apiClient.get<CultureGroup[]>('/patents/group-cultures/');
-      return data;
+      console.log('🔍 Загрузка групп культур из Patents API...');
+      try {
+        const { data } = await apiClient.get<CultureGroup[]>('/patents/group-cultures/');
+        console.log('✅ Получены группы культур из Patents API:', data);
+        return data || [];
+      } catch (error) {
+        console.error('❌ Ошибка загрузки групп культур из Patents API:', error);
+        console.log('🔄 Пробуем fallback - данные из заявок...');
+        
+        // Fallback: получаем данные из заявок
+        try {
+          const { data: applicationsData } = await apiClient.get<{ results: any[] }>('/applications/', { 
+            params: { page_size: 1000 } 
+          });
+          
+          const applications = applicationsData?.results || [];
+          const groupsMap = new Map();
+          
+          applications.forEach(app => {
+            if (app.sort_record_data?.culture_group_name) {
+              groupsMap.set(app.sort_record_data.culture_group_name, {
+                id: Math.random(),
+                name: app.sort_record_data.culture_group_name,
+                group_culture_id: Math.random()
+              });
+            }
+          });
+          
+          const result = Array.from(groupsMap.values());
+          console.log('✅ Fallback: получены группы культур из заявок:', result);
+          return result;
+        } catch (fallbackError) {
+          console.error('❌ Ошибка fallback:', fallbackError);
+          return [];
+        }
+      }
     },
     getById: async (id: number) => {
-      const { data } = await apiClient.get<CultureGroup>(`/patents/group-cultures/${id}/`);
-      return data;
+      try {
+        const { data } = await apiClient.get<CultureGroup>(`/patents/group-cultures/${id}/`);
+        return data;
+      } catch (error) {
+        console.error('❌ Ошибка получения группы культур по ID:', error);
+        return {
+          id,
+          name: 'Unknown Group',
+          group_culture_id: id
+        } as CultureGroup;
+      }
     },
   },
 
-  // Cultures
+  // Cultures (from Patents API)
   cultures: {
     getAll: async (params?: { group?: number }) => {
-      const { data } = await apiClient.get<Culture[] | { results: Culture[] }>('/patents/cultures/', { params });
-      // Бэкенд может вернуть либо массив, либо пагинированный объект с results
-      return Array.isArray(data) ? data : data.results || [];
+      console.log('🔍 Загрузка культур из Patents API...', params);
+      try {
+        const { data } = await apiClient.get<Culture[] | { results: Culture[] }>('/patents/cultures/', { params });
+        console.log('✅ Получены культуры из Patents API:', data);
+        
+        // Бэкенд может вернуть либо массив, либо пагинированный объект с results
+        const result = Array.isArray(data) ? data : data.results || [];
+        console.log('📋 Обработанные культуры:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ Ошибка загрузки культур из Patents API:', error);
+        console.log('🔄 Пробуем fallback - данные из заявок...');
+        
+        // Fallback: получаем данные из заявок
+        try {
+          const { data: applicationsData } = await apiClient.get<{ results: any[] }>('/applications/', { 
+            params: { page_size: 1000 } 
+          });
+          
+          const applications = applicationsData?.results || [];
+          const culturesMap = new Map();
+          
+          applications.forEach(app => {
+            if (app.sort_record_data?.culture_name) {
+              culturesMap.set(app.sort_record_data.culture_name, {
+                id: app.sort_record_data.culture || Math.random(),
+                name: app.sort_record_data.culture_name,
+                culture_group: app.sort_record_data.culture_group,
+                culture_group_name: app.sort_record_data.culture_group_name
+              });
+            }
+          });
+          
+          let result = Array.from(culturesMap.values());
+          
+          // Фильтруем по группе если указана
+          if (params?.group) {
+            result = result.filter(culture => 
+              culture.culture_group === params.group || 
+              culture.culture_group_name === params.group
+            );
+          }
+          
+          console.log('✅ Fallback: получены культуры из заявок:', result);
+          return result;
+        } catch (fallbackError) {
+          console.error('❌ Ошибка fallback:', fallbackError);
+          return [];
+        }
+      }
     },
     getById: async (id: number) => {
-      const { data } = await apiClient.get<Culture>(`/patents/cultures/${id}/`);
-      return data;
+      try {
+        const { data } = await apiClient.get<Culture>(`/patents/cultures/${id}/`);
+        return data;
+      } catch (error) {
+        console.error('❌ Ошибка получения культуры по ID:', error);
+        return {
+          id,
+          name: 'Unknown Culture',
+          culture_group: undefined
+        } as Culture;
+      }
     },
   },
 

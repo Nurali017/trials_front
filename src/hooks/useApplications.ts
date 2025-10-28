@@ -5,6 +5,8 @@ import type {
   CreateApplicationRequest,
   UpdateApplicationRequest,
   DistributeApplicationRequest,
+  ApplicationFilters,
+  CultureGroupsStatisticsResponse,
 } from '@/types/api.types';
 
 // Query keys
@@ -15,6 +17,7 @@ export const applicationKeys = {
   details: () => [...applicationKeys.all, 'detail'] as const,
   detail: (id: number) => [...applicationKeys.details(), id] as const,
   statistics: () => [...applicationKeys.all, 'statistics'] as const,
+  cultureGroupsStats: (filters?: Record<string, any>) => [...applicationKeys.all, 'culture-groups-stats', filters] as const,
   regionalTrials: (id: number) => [...applicationKeys.detail(id), 'regional-trials'] as const,
   regionalStatus: (id: number) => [...applicationKeys.detail(id), 'regional-status'] as const, // ⭐ Новый!
   decisions: (id: number) => [...applicationKeys.detail(id), 'decisions'] as const,
@@ -23,8 +26,8 @@ export const applicationKeys = {
     [...applicationKeys.all, 'pending-for-region', regionId, cultureId] as const,
 };
 
-// Get all applications
-export const useApplications = (filters?: Record<string, any>) => {
+// Get applications with filters and pagination
+export const useApplications = (filters?: ApplicationFilters) => {
   return useQuery({
     queryKey: applicationKeys.list(filters),
     queryFn: () => applicationsService.getAll(filters),
@@ -45,6 +48,14 @@ export const useApplicationStatistics = () => {
   return useQuery({
     queryKey: applicationKeys.statistics(),
     queryFn: () => applicationsService.getStatistics(),
+  });
+};
+
+// Get culture groups statistics
+export const useCultureGroupsStatistics = (filters?: { year?: number; status?: string; oblast?: number }) => {
+  return useQuery({
+    queryKey: applicationKeys.cultureGroupsStats(filters),
+    queryFn: () => applicationsService.getCultureGroupsStatistics(filters),
   });
 };
 
