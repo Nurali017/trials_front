@@ -224,14 +224,10 @@ const groupedData = response.detailed_items_by_group;
 // Отобразить группы
 Object.values(groupedData).forEach(group => {
   // Заголовок группы
-  console.log(`Группа: ${group.group_name} (${group.group_code})`);
-  console.log(`Стандарт: ${group.standard}`);
   
   // Таблица сортов в группе
   group.items.forEach(item => {
-    console.log(`  ${item.sort_record.name} - ${item.trial_data.average_yield} ц/га`);
     if (!item.is_standard) {
-      console.log(`    Отклонение: ${item.trial_data.deviation_percent}%`);
     }
   });
 });

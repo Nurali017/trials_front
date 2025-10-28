@@ -291,7 +291,6 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
                             // Ищем сорт по ID, учитывая что participant.sort_record может быть Patents ID
                             const found = sortsArray.find(s => s.id === participant.sort_record);
                             if (found) {
-                              console.log('✅ Найден сорт по ID:', found.name);
                               return found;
                             }
                             
@@ -301,13 +300,10 @@ export const ParticipantSelector: React.FC<ParticipantSelectorProps> = ({
                             if (suggested) {
                               const foundByName = sortsArray.find(s => s.name === suggested.sort_name);
                               if (foundByName) {
-                                console.log('✅ Найден сорт по имени:', foundByName.name);
                                 return foundByName;
                               } else {
-                                console.log('❌ Не найден сорт по имени:', suggested.sort_name, 'в', sortsArray.map(s => s.name));
                               }
                             } else {
-                              console.log('❌ Не найден suggested participant для sort_record:', participant.sort_record);
                             }
                             
                             return null;

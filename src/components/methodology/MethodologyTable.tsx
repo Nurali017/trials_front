@@ -290,12 +290,6 @@ const MaturityGroupTable: React.FC<MaturityGroupTableProps> = ({
   const qualityIndicators = Array.from(qualityIndicatorKeys);
   const allIndicatorKeys = [...mainIndicators, ...qualityIndicators];
 
-  // Отладка - выводим в консоль что получили
-  console.log('Группа:', groupName);
-  console.log('Основные показатели:', mainIndicators);
-  console.log('Качественные показатели:', qualityIndicators);
-  console.log('Пример сорта:', groupData.sorts[0]);
-
   return (
     <Box sx={{ mb: 2 }}>
         <Box

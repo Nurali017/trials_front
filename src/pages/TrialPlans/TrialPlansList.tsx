@@ -59,9 +59,6 @@ const TrialPlansList: React.FC = () => {
   // Debug: log the response structure
   React.useEffect(() => {
     if (trialPlansResponse) {
-      console.log('Trial Plans Response:', trialPlansResponse);
-      console.log('Trial Plans Array:', trialPlans);
-      console.log('Is Array:', Array.isArray(trialPlans));
     }
   }, [trialPlansResponse, trialPlans]);
   const dictionaries = useDictionaries();

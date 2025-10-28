@@ -98,7 +98,6 @@ export const TrialDataEntry: React.FC<TrialDataEntryProps> = ({ trial, onSuccess
   // 🔍 DEBUG: Выводим информацию о показателях в консоль для проверки
   React.useEffect(() => {
     if (indicators.length > 0) {
-      console.log('📊 Показатели испытания:', indicators.map(ind => ({
         id: ind.id,
         code: ind.code,
         name: ind.name,

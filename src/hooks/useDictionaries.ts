@@ -250,7 +250,7 @@ export const useDictionaries = () => {
 
   // Отладка состояния загрузки
   if (import.meta.env.DEV) {
-    // console.log('🔍 useDictionaries состояние:', {
+    // Отладочная информация отключена
     //   oblasts: { data: oblasts, loading: oblastsLoading, error: oblastsError },
     //   cultures: { data: cultures, loading: culturesLoading, error: culturesError },
     //   cultureGroups: { data: cultureGroups, loading: cultureGroupsLoading, error: cultureGroupsError },

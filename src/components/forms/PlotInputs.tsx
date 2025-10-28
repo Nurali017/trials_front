@@ -87,7 +87,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
                 firstPlotRef.select();
               }
               if (import.meta.env.DEV) {
-                console.log('PlotInputs: Focused on plot input for yield indicator');
               }
             }
           } else {
@@ -100,7 +99,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
                 directRef.select();
               }
               if (import.meta.env.DEV) {
-                console.log('PlotInputs: Focused on direct input');
               }
             }
           }
@@ -119,7 +117,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
         
         if (!isInputFocused) {
           if (import.meta.env.DEV) {
-            console.log('PlotInputs: Additional focus check - restoring focus');
           }
           focusInput();
         }
@@ -130,7 +127,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
   // Обработчики для предотвращения потери фокуса
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (import.meta.env.DEV) {
-      console.log('PlotInputs: Input focused', e.target.name || 'direct');
     }
   };
 
@@ -146,7 +142,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
         
         if (!isStillFocused) {
           if (import.meta.env.DEV) {
-            console.log('PlotInputs: Lost focus, attempting to restore');
           }
           // Пытаемся вернуть фокус
           if (usePlots && isYieldIndicator) {
@@ -177,7 +172,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
         
         if (!isInputFocused) {
           if (import.meta.env.DEV) {
-            console.log('PlotInputs: Periodic focus check - restoring focus');
           }
           // Восстанавливаем фокус
           if (usePlots && isYieldIndicator) {
@@ -263,7 +257,6 @@ export const PlotInputs: React.FC<PlotInputsProps> = ({
       e.preventDefault();
       const direction = e.key.replace('Arrow', '').toLowerCase() as 'up' | 'down' | 'left' | 'right';
       if (import.meta.env.DEV) {
-        console.log('PlotInputs: Navigation key pressed', direction, 'onNavigate exists:', !!onNavigate);
       }
       try {
         onNavigate(direction);

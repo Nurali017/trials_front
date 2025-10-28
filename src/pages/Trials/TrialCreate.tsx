@@ -247,7 +247,6 @@ export const TrialCreate: React.FC = () => {
         indicators: undefined,
       };
 
-      console.log('🚀 Отправляем payload:', JSON.stringify(payload, null, 2));
       const trial = await trialsService.create(payload);
 
       enqueueSnackbar('Сортоопыт успешно создан!', { variant: 'success' });

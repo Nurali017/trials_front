@@ -306,7 +306,6 @@ export const Form008: React.FC = () => {
     });
     
     if (import.meta.env.DEV) {
-      // console.log('Form008: Navigation completed', {
       //   from: currentCell,
       //   to: { participantId: newParticipantId, indicatorCode: newIndicatorCode },
       //   direction
@@ -388,7 +387,6 @@ export const Form008: React.FC = () => {
           const validation = data.min_max?.[indicator.code];
           const validationRules = indicator.validation_rules;
           
-          // console.log(`🔍 Показатель "${indicator.name}" (${indicator.code}):`, {
           //   id: indicator.id,
           //   name: indicator.name,
           //   code: indicator.code,
@@ -403,7 +401,6 @@ export const Form008: React.FC = () => {
           
           // Детальный анализ валидационных правил
           if (validationRules) {
-            // console.log(`📋 Валидационные правила для "${indicator.name}":`, validationRules);
           }
         });
         
@@ -411,25 +408,19 @@ export const Form008: React.FC = () => {
         const validationFields = ['validation', 'validation_rules', 'rules', 'constraints', 'min', 'max', 'required', 'type'];
         const sampleIndicator = data.indicators[0];
         const foundValidationFields = validationFields.filter(field => field in sampleIndicator);
-        // console.log('✅ Поля валидации в показателях:', foundValidationFields);
         
         if (foundValidationFields.length === 0) {
-          // console.log('❌ Поля валидации НЕ найдены в структуре показателей');
         } else {
-          // console.log('✅ Найдены поля валидации:', foundValidationFields);
           
           // Показываем пример валидационных правил
           const exampleValidation = sampleIndicator.validation_rules;
           if (exampleValidation) {
-            // console.log('📋 Пример validation_rules:', exampleValidation);
           }
         }
       }
       
       if (data.min_max) {
-        // console.log('📊 Валидация min_max доступна для показателей:', Object.keys(data.min_max));
       } else {
-        // console.log('❌ Валидация min_max НЕ получена');
       }
       const initialData: Record<number, Record<string, Form008Result>> = {};
       
@@ -472,8 +463,6 @@ export const Form008: React.FC = () => {
         additional_info: data.trial.additional_info || '',
       };
       
-      // console.log('🔍 Инициализация условий испытания:');
-      // console.log('- Исходные данные из API:', {
       //   agro_background: data.trial.agro_background,
       //   growing_conditions: data.trial.growing_conditions,
       //   cultivation_technology: data.trial.cultivation_technology,
@@ -482,7 +471,6 @@ export const Form008: React.FC = () => {
       //   harvest_date: data.trial.harvest_date,
       //   additional_info: data.trial.additional_info,
       // });
-      // console.log('- Преобразованные данные:', initialConditions);
       
       // Проверяем, какие поля не удалось преобразовать
       const failedConversions = [];
@@ -505,7 +493,6 @@ export const Form008: React.FC = () => {
       if (failedConversions.length > 0) {
         console.warn('⚠️ Не удалось преобразовать следующие поля:', failedConversions);
       } else {
-        // console.log('✅ Все поля успешно преобразованы');
       }
       
       setConditionsData(initialConditions);
@@ -584,7 +571,6 @@ export const Form008: React.FC = () => {
 
   // Обработчик изменения условий испытания
   const handleConditionsChange = (field: keyof Form008UpdateConditionsRequest, value: any) => {
-    // console.log(`🔄 Изменение поля "${field}":`, value);
     
     setConditionsData(prev => {
       const updated = {
@@ -592,7 +578,6 @@ export const Form008: React.FC = () => {
         [field]: value,
       };
       
-      // console.log('📝 Обновленные условия испытания:', updated);
       
       // Автосохранение условий испытания с debounce
       autoSaveConditions(updated);
@@ -614,7 +599,6 @@ export const Form008: React.FC = () => {
                         data.additional_info !== undefined;
       
       if (hasAnyData) {
-        // console.log('🔄 Автосохранение условий испытания:', data);
         updateConditions(
           {
             trialId,
@@ -623,11 +607,9 @@ export const Form008: React.FC = () => {
           {
             onSuccess: (response) => {
               setLastSaved(new Date());
-              // console.log('✅ Условия испытания успешно сохранены');
               
               // Обновляем локальное состояние с данными из ответа сервера
               if (response?.trial) {
-                // console.log('📥 Данные из ответа автосохранения:', {
                 //   agro_background: response.trial.agro_background,
                 //   growing_conditions: response.trial.growing_conditions,
                 //   cultivation_technology: response.trial.cultivation_technology,
@@ -647,7 +629,6 @@ export const Form008: React.FC = () => {
                   additional_info: response.trial.additional_info || '',
                 };
                 
-                // console.log('🔄 Обновление локального состояния после автосохранения:', updatedConditions);
                 setConditionsData(updatedConditions);
               } else {
                 console.warn('⚠️ Ответ автосохранения не содержит данных trial:', response);
@@ -659,7 +640,6 @@ export const Form008: React.FC = () => {
           }
         );
       } else {
-        // console.log('⏭️ Пропуск автосохранения - нет данных для сохранения');
       }
     }, 2000), // Уменьшаем debounce до 2 секунд для более быстрого сохранения
     [trialId, updateConditions]
@@ -667,7 +647,6 @@ export const Form008: React.FC = () => {
 
   // Сохранение условий испытания
   const handleSaveConditions = () => {
-    // console.log('💾 Принудительное сохранение условий испытания:', conditionsData);
     
     // Валидация обязательных полей
     const missingFields = [];
@@ -688,12 +667,10 @@ export const Form008: React.FC = () => {
       },
       {
         onSuccess: (response) => {
-          // console.log('✅ Условия испытания успешно сохранены:', response);
           enqueueSnackbar('Условия испытания обновлены', { variant: 'success' });
           
           // Обновляем локальное состояние с данными из ответа сервера
           if (response.trial) {
-            // console.log('📥 Данные из ответа сервера:', {
             //   agro_background: response.trial.agro_background,
             //   growing_conditions: response.trial.growing_conditions,
             //   cultivation_technology: response.trial.cultivation_technology,
@@ -713,7 +690,6 @@ export const Form008: React.FC = () => {
               additional_info: response.trial.additional_info || '',
             };
             
-            // console.log('🔄 Обновление локального состояния после сохранения:', updatedConditions);
             setConditionsData(updatedConditions);
             
             // Принудительно обновляем данные формы из API

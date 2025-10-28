@@ -34,8 +34,6 @@ export const dictionariesService = {
       let nextUrl: string | null = '/regions/';
       let pageNum = 1;
       
-      console.log('🔍 Загрузка всех регионов...');
-      
       while (nextUrl) {
         const queryParams = { ...params, page: pageNum, page_size: 100 };
         const { data }: { data: { results: Region[]; next: string | null; count: number } | Region[] } = await apiClient.get<{ results: Region[]; next: string | null; count: number } | Region[]>(
@@ -45,13 +43,11 @@ export const dictionariesService = {
         
         if (Array.isArray(data)) {
           // Если пришел массив напрямую - возвращаем его
-          console.log('✅ Получен массив регионов:', data.length);
           return data;
         } else {
           // Пагинированный ответ
           allRegions = [...allRegions, ...data.results];
           nextUrl = data.next;
-          console.log(`📄 Страница ${pageNum}: получено ${data.results.length}, всего ${allRegions.length} из ${data.count}`);
           pageNum++;
           
           // Защита от бесконечного цикла
@@ -62,7 +58,6 @@ export const dictionariesService = {
         }
       }
       
-      console.log('✅ Загружено всего регионов:', allRegions.length);
       return allRegions;
     },
     getById: async (id: number) => {
@@ -89,8 +84,6 @@ export const dictionariesService = {
       let nextUrl: string | null = '/indicators/';
       let pageNum = 1;
       
-      console.log('🔍 Загрузка всех показателей...');
-      
       while (nextUrl) {
         const queryParams = { ...params, page: pageNum, page_size: 100 };
         const { data }: { data: { results: any[]; next: string | null; count: number } | any[] } = await apiClient.get<{ results: any[]; next: string | null; count: number } | any[]>(
@@ -100,13 +93,11 @@ export const dictionariesService = {
         
         if (Array.isArray(data)) {
           // Если пришел массив напрямую - возвращаем его
-          console.log('✅ Получен массив показателей:', data.length);
           return data;
         } else {
           // Пагинированный ответ
           allIndicators = [...allIndicators, ...data.results];
           nextUrl = data.next;
-          console.log(`📄 Страница ${pageNum}: получено ${data.results.length}, всего ${allIndicators.length} из ${data.count}`);
           pageNum++;
           
           // Защита от бесконечного цикла
@@ -117,7 +108,6 @@ export const dictionariesService = {
         }
       }
       
-      console.log('✅ Загружено всего показателей:', allIndicators.length);
       return allIndicators;
     },
     getById: async (id: number) => {
@@ -144,14 +134,11 @@ export const dictionariesService = {
   // Culture Groups (from Patents API)
   cultureGroups: {
     getAll: async () => {
-      console.log('🔍 Загрузка групп культур из Patents API...');
       try {
         const { data } = await apiClient.get<CultureGroup[]>('/patents/group-cultures/');
-        console.log('✅ Получены группы культур из Patents API:', data);
         return data || [];
       } catch (error) {
         console.error('❌ Ошибка загрузки групп культур из Patents API:', error);
-        console.log('🔄 Пробуем fallback - данные из заявок...');
         
         // Fallback: получаем данные из заявок
         try {
@@ -173,7 +160,6 @@ export const dictionariesService = {
           });
           
           const result = Array.from(groupsMap.values());
-          console.log('✅ Fallback: получены группы культур из заявок:', result);
           return result;
         } catch (fallbackError) {
           console.error('❌ Ошибка fallback:', fallbackError);
@@ -199,18 +185,14 @@ export const dictionariesService = {
   // Cultures (from Patents API)
   cultures: {
     getAll: async (params?: { group?: number }) => {
-      console.log('🔍 Загрузка культур из Patents API...', params);
       try {
         const { data } = await apiClient.get<Culture[] | { results: Culture[] }>('/patents/cultures/', { params });
-        console.log('✅ Получены культуры из Patents API:', data);
         
         // Бэкенд может вернуть либо массив, либо пагинированный объект с results
         const result = Array.isArray(data) ? data : data.results || [];
-        console.log('📋 Обработанные культуры:', result);
         return result;
       } catch (error) {
         console.error('❌ Ошибка загрузки культур из Patents API:', error);
-        console.log('🔄 Пробуем fallback - данные из заявок...');
         
         // Fallback: получаем данные из заявок
         try {
@@ -242,7 +224,6 @@ export const dictionariesService = {
             );
           }
           
-          console.log('✅ Fallback: получены культуры из заявок:', result);
           return result;
         } catch (fallbackError) {
           console.error('❌ Ошибка fallback:', fallbackError);

@@ -149,14 +149,9 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
         })) : []
       };
 
-      console.log('📤 Отправляем данные на Django API:', requestData);
-      console.log('🎯 Culture ID:', sortData.culture);
-      console.log('👥 Оригинаторы:', originators);
-
       // Call Django API to create sort
       const response = await apiClient.post('/sort-records/', requestData);
       const createdSort = response.data;
-      console.log('Сорт создан:', createdSort);
       
       // Show success message
       enqueueSnackbar('Сорт успешно создан!', { variant: 'success' });

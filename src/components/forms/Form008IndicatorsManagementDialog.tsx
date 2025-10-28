@@ -86,17 +86,9 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
   // Отладочная информация
   useEffect(() => {
     if (open) {
-      console.log('Form008IndicatorsManagementDialog opened:');
-      console.log('- form008Data:', form008Data);
-      console.log('- trial:', form008Data?.trial);
-      console.log('- cultureId:', cultureId);
-      console.log('- warnings:', form008Data?.warnings);
-      console.log('- indicators:', form008Data?.indicators);
-      console.log('- min_max (валидация):', form008Data?.min_max);
       
       // Анализ текущих показателей из Form008Data
       if (form008Data?.indicators) {
-        console.log('📋 Текущие показатели Form008:', {
           count: form008Data.indicators.length,
           indicators: form008Data.indicators.map(ind => ({
             id: ind.id,
@@ -110,19 +102,15 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
         
         const autoCalcInForm008 = form008Data.indicators.filter(ind => ind.is_auto_calculated);
         if (autoCalcInForm008.length > 0) {
-          console.log('🤖 Авторасчитываемые в Form008:', autoCalcInForm008);
         }
         
         // Анализ валидации для каждого показателя
         if (form008Data.min_max) {
-          console.log('📊 Валидация показателей (min_max):', form008Data.min_max);
           
           form008Data.indicators.forEach(indicator => {
             const validation = form008Data.min_max?.[indicator.code];
-            console.log(`🔍 Валидация для ${indicator.name} (${indicator.code}):`, validation);
           });
         } else {
-          console.log('❌ Валидация min_max НЕ получена');
         }
       }
     }
@@ -131,10 +119,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
   // Отладочная информация для indicatorsData
   useEffect(() => {
     if (indicatorsData) {
-      console.log('🔍 indicatorsData loaded:');
-      console.log('- indicatorsData:', indicatorsData);
-      console.log('- required_indicators:', (indicatorsData as any).required_indicators);
-      console.log('- recommended_indicators:', indicatorsData.recommended_indicators);
       
       // Анализ авторасчитываемых показателей
       const allIndicators = [
@@ -143,7 +127,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
       ];
       
       const autoCalculated = allIndicators.filter(ind => ind.is_auto_calculated);
-      console.log('🤖 Авторасчитываемые показатели найдены:', {
         total: autoCalculated.length,
         list: autoCalculated.map(ind => ({ 
           id: ind.id, 
@@ -156,7 +139,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
       // Дополнительная проверка структуры показателей
       if (allIndicators.length > 0) {
         const sampleIndicator = allIndicators[0];
-        console.log('🔍 Пример показателя (первый):', {
           id: sampleIndicator.id,
           name: sampleIndicator.name,
           code: sampleIndicator.code,
@@ -168,16 +150,13 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
         // Проверяем поля валидации
         const validationFields = ['validation', 'rules', 'constraints', 'min', 'max', 'required', 'type'];
         const foundValidationFields = validationFields.filter(field => field in sampleIndicator);
-        console.log('✅ Поля валидации найдены:', foundValidationFields);
         
         if (foundValidationFields.length === 0) {
-          console.log('❌ Поля валидации НЕ найдены в показателе');
         }
       }
       
       // Анализ валидации для определения авторасчитываемых показателей
       if (form008Data?.warnings) {
-        console.log('⚠️ Валидация Form008:', {
           warningsCount: form008Data.warnings.length,
           warnings: form008Data.warnings.map(w => ({
             level: w.level,
@@ -193,7 +172,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
         );
         
         if (autoCalcWarnings.length > 0) {
-          console.log('🤖 Найдены предупреждения об авторасчетах:', autoCalcWarnings);
         }
       }
     }
@@ -249,7 +227,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
     const autoCalculatedIndicators = indicators.filter(indicator => indicatorIsAutoCalculated(indicator));
     const filteredIndicators = indicators.filter(indicator => !indicatorIsAutoCalculated(indicator));
     
-    console.log(`📊 ${title} показатели:`, {
       total: indicators.length,
       autoCalculated: autoCalculatedIndicators.length,
       filtered: filteredIndicators.length,
@@ -294,7 +271,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
     const autoCalculatedCurrent = currentIndicators.filter(indicator => indicatorIsAutoCalculated(indicator));
     const filteredCurrentIndicators = currentIndicators.filter(indicator => !indicatorIsAutoCalculated(indicator));
     
-    console.log(`📋 Текущие показатели:`, {
       total: currentIndicators.length,
       autoCalculated: autoCalculatedCurrent.length,
       filtered: filteredCurrentIndicators.length,
@@ -367,7 +343,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
     const availableRecommended = allRecommended
       .filter(ind => !currentIndicatorIds.includes(ind.id) && !ind.is_auto_calculated);
     
-    console.log(`➕ Доступные рекомендуемые показатели:`, {
       total: allRecommended.length,
       autoCalculated: autoCalculatedRecommended.length,
       alreadyAdded: allRecommended.filter(ind => currentIndicatorIds.includes(ind.id)).length,
