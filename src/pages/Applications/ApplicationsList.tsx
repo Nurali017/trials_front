@@ -33,7 +33,7 @@ export const ApplicationsList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: applications, isLoading } = useApplications();
+  const { data: applications, isLoading } = useApplications({ page_size: 1000 });
 
   // Handle both array and object responses
   const applicationsArray = Array.isArray(applications)

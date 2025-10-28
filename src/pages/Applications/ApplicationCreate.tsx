@@ -185,12 +185,7 @@ export const ApplicationCreate: React.FC = () => {
       const newSort = availableSorts?.find((s: AvailableSort) => s.id === newSortId);
       if (newSort) {
         setSelectedSort(newSort);
-        enqueueSnackbar('Сорт создан и выбран успешно! Переходим к следующему шагу.', { variant: 'success' });
-        
-        // Автоматически переходим к следующему шагу
-        setTimeout(() => {
-          handleNext();
-        }, 1000);
+        enqueueSnackbar('Сорт создан и выбран успешно!', { variant: 'success' });
       }
     }, 500);
   };

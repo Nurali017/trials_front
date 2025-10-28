@@ -14,8 +14,41 @@ import type {
 export const applicationsService = {
   // Get all applications with optional filters
   getAll: async (params?: Record<string, any>) => {
-    const { data } = await apiClient.get<{ results: Application[] }>('/applications/', { params });
-    return data.results || data;
+    // Загружаем все заявки, обходя пагинацию
+    let allApplications: Application[] = [];
+    let nextUrl: string | null = '/applications/';
+    let pageNum = 1;
+    
+    console.log('🔍 Загрузка всех заявок...');
+    
+    while (nextUrl) {
+      const queryParams = { ...params, page: pageNum, page_size: 100 };
+      const { data }: { data: { results: Application[]; next: string | null; count: number } | Application[] } = await apiClient.get<{ results: Application[]; next: string | null; count: number } | Application[]>(
+        nextUrl.startsWith('http') ? nextUrl : '/applications/',
+        nextUrl.startsWith('http') ? undefined : { params: queryParams }
+      );
+      
+      if (Array.isArray(data)) {
+        // Если пришел массив напрямую - возвращаем его
+        console.log('✅ Получен массив заявок:', data.length);
+        return data;
+      } else {
+        // Пагинированный ответ
+        allApplications = [...allApplications, ...data.results];
+        nextUrl = data.next;
+        console.log(`📄 Страница ${pageNum}: получено ${data.results.length}, всего ${allApplications.length} из ${data.count}`);
+        pageNum++;
+        
+        // Защита от бесконечного цикла
+        if (pageNum > 50) {
+          console.warn('⚠️ Достигнут лимит страниц');
+          break;
+        }
+      }
+    }
+    
+    console.log(`✅ Загружено всего заявок: ${allApplications.length}`);
+    return allApplications;
   },
 
   // Get single application by ID
