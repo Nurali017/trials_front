@@ -88,10 +88,13 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
         }
       });
       
+      console.log('📝 Ответ suggest-applications:', response.data);
       const applications = response.data.applications || [];
+      console.log('📝 Найдено заявок:', applications.length, applications);
       
       // Преобразуем заявки в формат для выбора
       const mapped = applications.map((app: any) => {
+        console.log('📝 Обработка заявки:', {
           id: app.id,
           application_number: app.application_number,
           sort_record: app.sort_record,
@@ -108,9 +111,11 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
           source: 'applications',
         };
         
+        console.log('📝 Преобразовано в:', result);
         return result;
       });
       
+      console.log('📝 Итого преобразованных заявок:', mapped.length, mapped);
       return mapped;
     },
     enabled: !!cultureId && !!oblastId && open,
@@ -138,6 +143,8 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
             }
           });
           
+          console.log(`📋 Полный ответ для региона ${region.region_id}:`, response.data);
+          console.log(`📋 Ключи в ответе:`, Object.keys(response.data));
           
           // Проверяем все возможные варианты ответа
           const sorts = response.data.sorts || 
@@ -146,6 +153,7 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                        response.data.available_sorts || 
                        [];
           
+          console.log(`📋 Найдено сортов из реестра для региона ${region.region_id}:`, sorts.length, sorts);
           allSorts.push(...sorts);
         } catch (error) {
           console.warn(`Ошибка загрузки сортов для региона ${region.region_id}:`, error);
@@ -254,8 +262,10 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
   };
 
   const handleUpdateParticipant = (index: number, field: keyof ParticipantData, value: any) => {
+    console.log(`🔧 Обновление участника ${index}, поле: ${field}, значение:`, value);
     const updated = [...participants];
     updated[index] = { ...updated[index], [field]: value };
+    console.log(`🔧 Обновленный участник:`, updated[index]);
     setParticipants(updated);
   };
 
@@ -449,6 +459,7 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                         label="Источник сорта"
                         onChange={(e) => {
                           const newSource = e.target.value as 'registry' | 'applications';
+                          console.log(`🔄 Смена источника участника ${participantIndex}: ${participant.source} → ${newSource}`);
                           
                           // Обновляем все поля за один раз
                           const updated = [...participants];
@@ -460,8 +471,10 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                             maturity_group: '',
                             application_id: undefined,
                           };
+                          console.log(`🔄 Обновленный участник после смены источника:`, updated[participantIndex]);
                           setParticipants(updated);
                           
+                          console.log(`🔄 Источник изменен. Доступно сортов:`, 
                             newSource === 'registry' ? `Реестр: ${registrySorts.length}` : `Заявки: ${applicationSorts.length}`
                           );
                         }}
@@ -485,6 +498,10 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                       }}
                       loading={participant.source === 'registry' ? loadingRegistrySorts : loadingApplicationSorts}
                       onOpen={() => {
+                        console.log(`📋 Открыт выбор сорта для участника ${participantIndex}`);
+                        console.log(`📋 Источник: ${participant.source}`);
+                        console.log(`📋 Доступно опций:`, participant.source === 'registry' ? registrySorts.length : applicationSorts.length);
+                        console.log(`📋 Опции:`, participant.source === 'registry' ? registrySorts : applicationSorts);
                       }}
                       value={
                         participant.source === 'registry'
@@ -492,6 +509,8 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                           : applicationSorts.find((s: any) => s.application_id === participant.application_id) || null
                       }
                       onChange={(_, value) => {
+                        console.log(`🎯 Выбран сорт для участника ${participantIndex}:`, value);
+                        console.log(`🎯 Источник: ${participant.source}`);
                         
                         // Обновляем все поля за один раз
                         const updated = [...participants];
@@ -508,6 +527,7 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                         } else {
                           // Для обоих источников
                           const patentsSortId = value.patents_sort_id || value.id || 0;
+                          console.log(`🎯 patents_sort_id для отправки:`, patentsSortId);
                           
                           const updates: any = {
                             patents_sort_id: patentsSortId,
@@ -516,6 +536,7 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                           
                           // Автоматически заполняем данные из заявки
                           if (participant.source === 'applications') {
+                            console.log('📝 Автозаполнение из заявки:', {
                               maturity_group: value.maturity_group,
                               application_id: value.application_id,
                             });
@@ -537,6 +558,7 @@ export const AddParticipantsToPlanDialog: React.FC<AddParticipantsToPlanDialogPr
                           };
                         }
                         
+                        console.log(`🎯 Обновленный участник после выбора сорта:`, updated[participantIndex]);
                         setParticipants(updated);
                       }}
                       renderInput={(params) => (
