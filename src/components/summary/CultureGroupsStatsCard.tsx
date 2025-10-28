@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -46,6 +46,16 @@ const CultureGroupsStatsCard: React.FC<CultureGroupsStatsCardProps> = ({
 
   const { total_applications, total_culture_groups, culture_groups, filters_applied } = data;
 
+  // Memoize culture groups with percentages to avoid recalculation on every render
+  const cultureGroupsWithPercentages = useMemo(() => {
+    return culture_groups.map((group) => ({
+      ...group,
+      percentage: total_applications > 0
+        ? (group.applications_count / total_applications) * 100
+        : 0
+    }));
+  }, [culture_groups, total_applications]);
+
   return (
     <Card>
       <CardContent>
@@ -89,50 +99,44 @@ const CultureGroupsStatsCard: React.FC<CultureGroupsStatsCardProps> = ({
         )}
 
         <Grid container spacing={2}>
-          {culture_groups.map((group) => {
-            const percentage = total_applications > 0 
-              ? (group.applications_count / total_applications) * 100 
-              : 0;
-
-            return (
-              <Grid item xs={12} sm={6} md={4} key={group.id}>
-                <Card variant="outlined" sx={{ height: '100%' }}>
-                  <CardContent>
-                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                      <Typography variant="subtitle1" fontWeight="bold">
-                        {group.name}
-                      </Typography>
-                      <Chip 
-                        label={group.code} 
-                        size="small" 
-                        variant="outlined"
-                      />
-                    </Box>
-                    
-                    <Typography variant="body2" color="text.secondary" mb={2}>
-                      {group.cultures_count} культур
+          {cultureGroupsWithPercentages.map((group) => (
+            <Grid item xs={12} sm={6} md={4} key={group.id}>
+              <Card variant="outlined" sx={{ height: '100%' }}>
+                <CardContent>
+                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      {group.name}
                     </Typography>
+                    <Chip
+                      label={group.code}
+                      size="small"
+                      variant="outlined"
+                    />
+                  </Box>
 
-                    <Box mb={1}>
-                      <Box display="flex" justifyContent="space-between" mb={0.5}>
-                        <Typography variant="body2">
-                          Заявок: {group.applications_count}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {percentage.toFixed(1)}%
-                        </Typography>
-                      </Box>
-                      <LinearProgress
-                        variant="determinate"
-                        value={percentage}
-                        sx={{ height: 6, borderRadius: 3 }}
-                      />
+                  <Typography variant="body2" color="text.secondary" mb={2}>
+                    {group.cultures_count} культур
+                  </Typography>
+
+                  <Box mb={1}>
+                    <Box display="flex" justifyContent="space-between" mb={0.5}>
+                      <Typography variant="body2">
+                        Заявок: {group.applications_count}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {group.percentage.toFixed(1)}%
+                      </Typography>
                     </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
+                    <LinearProgress
+                      variant="determinate"
+                      value={group.percentage}
+                      sx={{ height: 6, borderRadius: 3 }}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
         </Grid>
 
         {culture_groups.length === 0 && (
@@ -146,4 +150,5 @@ const CultureGroupsStatsCard: React.FC<CultureGroupsStatsCardProps> = ({
 };
 
 export default CultureGroupsStatsCard;
+
 

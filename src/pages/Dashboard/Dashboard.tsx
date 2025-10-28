@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Grid,
   Card,
@@ -18,72 +18,47 @@ import { useApplications, useApplicationStatistics, useCultureGroupsStatistics }
 import { useTrials } from '@/hooks/useTrials';
 import { getApplicationStatusMuiColor, getApplicationStatusLabel } from '@/utils/statusHelpers';
 import { CardSkeleton } from '@/components/common/CardSkeleton';
+import { StatCard } from '@/components/common/StatCard';
 import CultureGroupsStatsCard from '@/components/summary/CultureGroupsStatsCard';
 import { useNavigate } from 'react-router-dom';
-
-const StatCard: React.FC<{
-  title: string;
-  value: number | string;
-  icon: React.ReactElement;
-  color?: string;
-}> = ({ title, value, icon, color = 'primary.main' }) => (
-  <Card>
-    <CardContent>
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {title}
-          </Typography>
-          <Typography variant="h4" fontWeight="bold">
-            {value}
-          </Typography>
-        </Box>
-        <Box
-          sx={{
-            bgcolor: color,
-            borderRadius: 2,
-            p: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: 0.9,
-          }}
-        >
-          {React.cloneElement(icon, { sx: { fontSize: 32, color: 'white' } })}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-);
 
 export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   // Get recent applications for display (limited to 10)
-  const { data: recentApplications, isLoading: loadingApplications } = useApplications({
+  const { data: recentApplications, isLoading: loadingApplications, error: applicationsError } = useApplications({
     page_size: 10,
   });
 
   // Get statistics for accurate counts
-  const { data: statistics, isLoading: loadingStatistics } = useApplicationStatistics();
+  const { data: statistics, isLoading: loadingStatistics, error: statisticsError } = useApplicationStatistics();
 
   // Get culture groups statistics
-  const { data: cultureGroupsStats, isLoading: loadingCultureGroupsStats } = useCultureGroupsStatistics();
+  const { data: cultureGroupsStats, isLoading: loadingCultureGroupsStats, error: cultureGroupsError } = useCultureGroupsStatistics();
 
-  const { data: activeTrials, isLoading: loadingTrials } = useTrials({
+  const { data: activeTrials, isLoading: loadingTrials, error: trialsError } = useTrials({
     status: 'active',
   });
 
-  // Handle both array and object responses
-  const applicationsArray = Array.isArray(recentApplications)
-    ? recentApplications
-    : recentApplications?.results || [];
+  // Memoize arrays to avoid recalculation on every render
+  const applicationsArray = useMemo(() =>
+    Array.isArray(recentApplications)
+      ? recentApplications
+      : recentApplications?.results || []
+  , [recentApplications]);
 
-  const trialsArray = Array.isArray(activeTrials)
-    ? activeTrials
-    : (activeTrials as any)?.results || [];
+  const trialsArray = useMemo(() =>
+    Array.isArray(activeTrials)
+      ? activeTrials
+      : (activeTrials as any)?.results || []
+  , [activeTrials]);
 
-  // Use statistics data for accurate counts
+  // Memoize filtered trials array
+  const filteredTrialsArray = useMemo(() =>
+    trialsArray.slice(0, 5).filter((trial: any) => trial && trial.sort_record_data)
+  , [trialsArray]);
+
+  // Memoize statistics values
   const totalApplications = statistics?.total || 0;
   const totalActiveTrials = trialsArray.length || 0;
   const registeredCount = statistics?.by_status?.registered || 0;
@@ -98,45 +73,65 @@ export const Dashboard: React.FC = () => {
         Обзор системы сортоиспытаний
       </Typography>
 
-      {/* Main Statistics */}
-      {loadingApplications || loadingTrials || loadingStatistics || loadingCultureGroupsStats ? (
-        <CardSkeleton count={4} variant="standard" />
-      ) : (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
+      {/* Main Statistics - Each card loads independently */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          {loadingStatistics ? (
+            <CardSkeleton count={1} variant="standard" />
+          ) : statisticsError ? (
+            <Alert severity="error">Ошибка загрузки</Alert>
+          ) : (
             <StatCard
               title="Всего заявок"
               value={totalApplications}
               icon={<ApplicationIcon />}
               color="#2196F3"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          )}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {loadingTrials ? (
+            <CardSkeleton count={1} variant="standard" />
+          ) : trialsError ? (
+            <Alert severity="error">Ошибка загрузки</Alert>
+          ) : (
             <StatCard
               title="Активных испытаний"
               value={totalActiveTrials}
               icon={<TrialIcon />}
               color="#FF9800"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          )}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {loadingStatistics ? (
+            <CardSkeleton count={1} variant="standard" />
+          ) : statisticsError ? (
+            <Alert severity="error">Ошибка загрузки</Alert>
+          ) : (
             <StatCard
               title="Включено в реестр"
               value={registeredCount}
               icon={<SuccessIcon />}
               color="#4CAF50"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          )}
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          {loadingStatistics ? (
+            <CardSkeleton count={1} variant="standard" />
+          ) : statisticsError ? (
+            <Alert severity="error">Ошибка загрузки</Alert>
+          ) : (
             <StatCard
               title="Отклонено"
               value={rejectedCount}
               icon={<ErrorIcon />}
               color="#F44336"
             />
-          </Grid>
+          )}
         </Grid>
-      )}
+      </Grid>
 
       {/* Recent Applications */}
       <Grid container spacing={3}>
@@ -182,6 +177,8 @@ export const Dashboard: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
+              ) : applicationsError ? (
+                <Alert severity="error">Ошибка загрузки заявок</Alert>
               ) : !applicationsArray || applicationsArray.length === 0 ? (
                 <Alert severity="info">Заявок пока нет</Alert>
               ) : (
@@ -266,11 +263,13 @@ export const Dashboard: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
-              ) : !trialsArray || trialsArray.length === 0 ? (
+              ) : trialsError ? (
+                <Alert severity="error">Ошибка загрузки испытаний</Alert>
+              ) : !filteredTrialsArray || filteredTrialsArray.length === 0 ? (
                 <Alert severity="info">Активных испытаний нет</Alert>
               ) : (
                 <Box>
-                  {trialsArray.slice(0, 5).filter((trial: any) => trial && trial.sort_record_data).map((trial: any) => (
+                  {filteredTrialsArray.map((trial: any) => (
                     <Box
                       key={trial.id}
                       sx={{

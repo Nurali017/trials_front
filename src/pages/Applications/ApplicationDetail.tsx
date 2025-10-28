@@ -65,7 +65,7 @@ export const ApplicationDetail: React.FC = () => {
         <Typography variant="h6" color="text.secondary">
           Заявка не найдена
         </Typography>
-        <Button onClick={() => navigate('/applications')} sx={{ mt: 2 }}>
+        <Button onClick={() => navigate(-1)} sx={{ mt: 2 }}>
           Назад к списку
         </Button>
       </Box>
@@ -77,7 +77,7 @@ export const ApplicationDetail: React.FC = () => {
       {/* Back Button */}
       <Button
         startIcon={<BackIcon />}
-        onClick={() => navigate('/applications')}
+        onClick={() => navigate(-1)}
         sx={{ mb: 2 }}
       >
         Назад к списку

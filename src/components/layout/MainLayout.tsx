@@ -95,7 +95,15 @@ export const MainLayout: React.FC = () => {
   };
 
   const handleNavigation = (path: string) => {
-    navigate(path);
+    // Don't navigate if already on the same path (preserves query params)
+    const isCurrentPath = path === '/'
+      ? location.pathname === '/'
+      : location.pathname.startsWith(path);
+
+    if (!isCurrentPath) {
+      navigate(path);
+    }
+
     if (isMobile) {
       setMobileOpen(false);
     }

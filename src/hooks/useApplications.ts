@@ -31,6 +31,9 @@ export const useApplications = (filters?: ApplicationFilters) => {
   return useQuery({
     queryKey: applicationKeys.list(filters),
     queryFn: () => applicationsService.getAll(filters),
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    gcTime: 5 * 60 * 1000, // Keep unused data in cache for 5 minutes
+    placeholderData: (previousData) => previousData, // Keep showing old data while loading new data
   });
 };
 
@@ -48,6 +51,8 @@ export const useApplicationStatistics = () => {
   return useQuery({
     queryKey: applicationKeys.statistics(),
     queryFn: () => applicationsService.getStatistics(),
+    staleTime: 5 * 60 * 1000, // Statistics are fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 };
 
@@ -56,6 +61,8 @@ export const useCultureGroupsStatistics = (filters?: { year?: number; status?: s
   return useQuery({
     queryKey: applicationKeys.cultureGroupsStats(filters),
     queryFn: () => applicationsService.getCultureGroupsStatistics(filters),
+    staleTime: 5 * 60 * 1000, // Statistics are fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
 };
 

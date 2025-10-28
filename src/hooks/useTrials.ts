@@ -30,6 +30,8 @@ export const useTrials = (filters?: Record<string, any>) => {
   return useQuery({
     queryKey: trialKeys.list(filters),
     queryFn: () => trialsService.getAll(filters),
+    staleTime: 2 * 60 * 1000, // Trials are fresh for 2 minutes
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 };
 
