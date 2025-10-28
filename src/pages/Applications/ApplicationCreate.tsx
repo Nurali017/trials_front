@@ -159,10 +159,53 @@ export const ApplicationCreate: React.FC = () => {
         }
       },
       onError: (error: any) => {
-        enqueueSnackbar(
-          `Ошибка: ${error.response?.data?.message || error.message}`,
-          { variant: 'error' }
-        );
+        console.error('Error creating application:', error);
+        console.error('Full error response:', error.response?.data);
+        
+        // Обработка ошибок Django REST Framework
+        let errorMessage = 'Ошибка при создании заявки';
+        
+        if (error.response?.data) {
+          const errorData = error.response.data;
+          
+          // Если есть общие ошибки
+          if (errorData.non_field_errors && errorData.non_field_errors.length > 0) {
+            errorMessage = errorData.non_field_errors.join(', ');
+          }
+          // Если есть ошибки полей
+          else if (typeof errorData === 'object') {
+            const fieldErrors = Object.entries(errorData)
+              .map(([field, messages]) => {
+                const fieldName = field === 'sort_id' ? 'Сорт' : 
+                                field === 'application_number' ? 'Номер заявки' :
+                                field === 'applicant' ? 'Заявитель' :
+                                field === 'applicant_inn_bin' ? 'ИНН/БИН' :
+                                field === 'contact_person_name' ? 'ФИО контактного лица' :
+                                field === 'contact_person_phone' ? 'Телефон' :
+                                field === 'contact_person_email' ? 'Email' :
+                                field === 'maturity_group' ? 'Группа спелости' :
+                                field === 'target_oblasts' ? 'Целевые области' : field;
+                return `${fieldName}: ${Array.isArray(messages) ? messages.join(', ') : messages}`;
+              })
+              .join('; ');
+            
+            if (fieldErrors) {
+              errorMessage = fieldErrors;
+            }
+          }
+          // Если есть простое сообщение
+          else if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          }
+          // Если есть message поле
+          else if (errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        enqueueSnackbar(errorMessage, { variant: 'error' });
       },
     });
   };
@@ -176,18 +219,9 @@ export const ApplicationCreate: React.FC = () => {
   };
 
   const handleSortCreated = (newSortId: number) => {
-    // После создания сорта, обновляем список и выбираем новый сорт
-    // Список обновится автоматически через invalidateQueries
-    setValue('sort_record', newSortId);
-    
-    // Найдем созданный сорт в обновленном списке после короткой задержки
-    setTimeout(() => {
-      const newSort = availableSorts?.find((s: AvailableSort) => s.id === newSortId);
-      if (newSort) {
-        setSelectedSort(newSort);
-        enqueueSnackbar('Сорт создан и выбран успешно!', { variant: 'success' });
-      }
-    }, 500);
+    // Сорт уже создан, сообщение показывается в CreateSortDialog
+    // Принудительно обновляем список доступных сортов
+    window.location.reload();
   };
 
   // Step 1: Sort Selection
@@ -425,11 +459,7 @@ export const ApplicationCreate: React.FC = () => {
             name="application_number"
             control={control}
             rules={{ 
-              required: 'Номер заявки обязателен',
-              pattern: {
-                value: /^\d+$/,
-                message: 'Номер заявки должен содержать только цифры'
-              }
+              required: 'Номер заявки обязателен'
             }}
             render={({ field }) => (
               <TextField
@@ -437,17 +467,8 @@ export const ApplicationCreate: React.FC = () => {
                 label="Номер заявки *"
                 fullWidth
                 error={!!errors.application_number}
-                helperText={errors.application_number?.message || 'Только цифры'}
-                placeholder="24505241"
-                type="tel"
-                inputProps={{ 
-                  inputMode: 'numeric',
-                  pattern: '[0-9]*'
-                }}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '');
-                  field.onChange(value);
-                }}
+                helperText={errors.application_number?.message || 'Буквы и цифры'}
+                placeholder="24505241 или А-12345"
               />
             )}
           />
@@ -528,27 +549,18 @@ export const ApplicationCreate: React.FC = () => {
             name="applicant_inn_bin"
             control={control}
             rules={{ 
-              required: 'ИНН/БИН обязателен',
               pattern: {
                 value: /^\d{12}$/,
-                message: 'ИНН/БИН должен содержать ровно 12 цифр'
-              },
-              minLength: {
-                value: 12,
-                message: 'ИНН/БИН должен содержать ровно 12 цифр'
-              },
-              maxLength: {
-                value: 12,
                 message: 'ИНН/БИН должен содержать ровно 12 цифр'
               }
             }}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="ИНН/БИН *"
+                label="ИНН/БИН"
                 fullWidth
                 error={!!errors.applicant_inn_bin}
-                helperText={errors.applicant_inn_bin?.message || 'Ровно 12 цифр'}
+                helperText={errors.applicant_inn_bin?.message || 'Ровно 12 цифр (необязательно)'}
                 placeholder="123456789012"
                 type="tel"
                 inputProps={{ 
@@ -569,11 +581,10 @@ export const ApplicationCreate: React.FC = () => {
           <Controller
             name="contact_person_name"
             control={control}
-            rules={{ required: 'ФИО контактного лица обязательно' }}
             render={({ field }) => (
               <TextField
                 {...field}
-                label="ФИО контактного лица *"
+                label="ФИО контактного лица"
                 fullWidth
                 error={!!errors.contact_person_name}
                 helperText={errors.contact_person_name?.message}
@@ -588,7 +599,6 @@ export const ApplicationCreate: React.FC = () => {
             name="contact_person_phone"
             control={control}
             rules={{ 
-              required: 'Телефон обязателен',
               pattern: {
                 value: /^[\d\s\+\-\(\)]+$/,
                 message: 'Некорректный формат телефона'
@@ -597,10 +607,10 @@ export const ApplicationCreate: React.FC = () => {
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Телефон *"
+                label="Телефон"
                 fullWidth
                 error={!!errors.contact_person_phone}
-                helperText={errors.contact_person_phone?.message || '+7 (701) 234-56-78'}
+                helperText={errors.contact_person_phone?.message || '+7 (701) 234-56-78 (необязательно)'}
                 placeholder="+7 (701) 234-56-78"
                 type="tel"
                 inputProps={{
@@ -633,7 +643,6 @@ export const ApplicationCreate: React.FC = () => {
             name="contact_person_email"
             control={control}
             rules={{ 
-              required: 'Email обязателен',
               pattern: {
                 value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                 message: 'Введите корректный email'
@@ -642,10 +651,10 @@ export const ApplicationCreate: React.FC = () => {
             render={({ field }) => (
               <TextField
                 {...field}
-                label="Email *"
+                label="Email"
                 fullWidth
                 error={!!errors.contact_person_email}
-                helperText={errors.contact_person_email?.message || 'Пример: ivanov@example.com'}
+                helperText={errors.contact_person_email?.message || 'Пример: ivanov@example.com (необязательно)'}
                 placeholder="ivanov@example.com"
                 type="email"
                 inputProps={{
@@ -870,6 +879,7 @@ export const ApplicationCreate: React.FC = () => {
         open={createSortDialogOpen}
         onClose={() => setCreateSortDialogOpen(false)}
         culture={selectedCulture}
+        cultureGroup={selectedCultureGroup}
         onSuccess={handleSortCreated}
       />
     </Box>

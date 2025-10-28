@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -37,10 +37,11 @@ interface CreateSortDialogProps {
   open: boolean;
   onClose: () => void;
   culture?: any;
+  cultureGroup?: any;
   onSuccess?: (newSortId: number) => void;
 }
 
-export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClose, culture: _culture, onSuccess }) => {
+export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClose, culture, cultureGroup, onSuccess }) => {
   const queryClient = useQueryClient();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -49,7 +50,6 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
   const [code, setCode] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<number | ''>('');
   const [selectedCulture, setSelectedCulture] = useState<number | ''>('');
-  const [applicant, setApplicant] = useState('');
   const [patentNis, setPatentNis] = useState(false);
   const [note, setNote] = useState('');
 
@@ -67,6 +67,14 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
     selectedGroup ? { group: selectedGroup } : undefined
   );
   const { data: originatorsList = [] } = useOriginators();
+
+  // Автовыбор группы культуры и культуры при открытии диалога
+  useEffect(() => {
+    if (open && cultureGroup && culture) {
+      setSelectedGroup(cultureGroup.id);
+      setSelectedCulture(culture.id);
+    }
+  }, [open, cultureGroup, culture]);
 
   const handleAddOriginator = (originator: OriginatorWithPercentage) => {
     // Check if total percentage would exceed 100%
@@ -121,7 +129,6 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
         lifestyle: 1, // Default value
         characteristic: 1, // Default value
         development_cycle: 1, // Default value
-        applicant: applicant.trim(),
         patent_nis: patentNis,
         note: note.trim() || null,
         status: 4, // Auto status
@@ -133,7 +140,6 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
         name: sortData.name,
         public_code: sortData.code || null,
         patents_culture_id: sortData.culture,
-        applicant: sortData.applicant || '',
         patent_nis: sortData.patent_nis || false,
         note: sortData.note || '',
         // Передаем оригинаторов, если Django API поддерживает
@@ -155,8 +161,10 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
       // Show success message
       enqueueSnackbar('Сорт успешно создан!', { variant: 'success' });
 
-      // Invalidate queries to refresh the list
+      // Invalidate queries to refresh the available sorts list
+      queryClient.invalidateQueries({ queryKey: ['trials', 'available-sorts'] });
       queryClient.invalidateQueries({ queryKey: ['sort-records'] });
+      queryClient.invalidateQueries({ queryKey: ['patents-sorts'] });
 
       // Call onSuccess callback if provided
       if (onSuccess && createdSort?.id) {
@@ -167,8 +175,45 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
       handleClose();
     } catch (err: any) {
       console.error('Error creating sort:', err);
-      setError(err.response?.data?.message || 'Ошибка при создании сорта');
-      enqueueSnackbar('Ошибка при создании сорта', { variant: 'error' });
+      console.error('Full error response:', err.response?.data);
+      
+      // Обработка ошибок Django REST Framework
+      let errorMessage = 'Ошибка при создании сорта';
+      
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        
+        // Если есть общие ошибки
+        if (errorData.non_field_errors && errorData.non_field_errors.length > 0) {
+          errorMessage = errorData.non_field_errors.join(', ');
+        }
+        // Если есть ошибки полей
+        else if (typeof errorData === 'object') {
+          const fieldErrors = Object.entries(errorData)
+            .map(([field, messages]) => {
+              const fieldName = field === 'patents_culture_id' ? 'Культура' : 
+                              field === 'public_code' ? 'Код сорта' :
+                              field === 'name' ? 'Название' : field;
+              return `${fieldName}: ${Array.isArray(messages) ? messages.join(', ') : messages}`;
+            })
+            .join('; ');
+          
+          if (fieldErrors) {
+            errorMessage = fieldErrors;
+          }
+        }
+        // Если есть простое сообщение
+        else if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        }
+        // Если есть message поле
+        else if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      }
+      
+      setError(errorMessage);
+      enqueueSnackbar(errorMessage, { variant: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +225,6 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
     setCode('');
     setSelectedGroup('');
     setSelectedCulture('');
-    setApplicant('');
     setPatentNis(false);
     setNote('');
     setOriginators([]);
@@ -240,7 +284,7 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
                   setSelectedCulture('');
                 }}
                 label="Группа культур"
-                disabled={groupsLoading}
+                disabled={groupsLoading || (cultureGroup && cultureGroup.id)}
               >
                 <MenuItem value="">
                   <em>Выберите группу</em>
@@ -259,7 +303,7 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
                 value={selectedCulture}
                 onChange={(e) => setSelectedCulture(e.target.value as number | '')}
                 label="Культура *"
-                disabled={culturesLoading}
+                disabled={culturesLoading || (culture && culture.id)}
               >
                 <MenuItem value="">
                   <em>Выберите культуру</em>
@@ -273,14 +317,6 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
             </FormControl>
           </Stack>
 
-          {/* Applicant */}
-          <TextField
-            label="Заявитель"
-            value={applicant}
-            onChange={(e) => setApplicant(e.target.value)}
-            fullWidth
-            placeholder="Название организации"
-          />
 
           {/* Patent NIS */}
           <FormControlLabel
