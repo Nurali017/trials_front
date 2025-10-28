@@ -89,28 +89,18 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
       
       // Анализ текущих показателей из Form008Data
       if (form008Data?.indicators) {
-          count: form008Data.indicators.length,
-          indicators: form008Data.indicators.map(ind => ({
-            id: ind.id,
-            name: ind.name,
-            code: ind.code,
-            is_auto_calculated: ind.is_auto_calculated,
-            category: ind.category,
-            is_quality: ind.is_quality
-          }))
-        });
-        
         const autoCalcInForm008 = form008Data.indicators.filter(ind => ind.is_auto_calculated);
         if (autoCalcInForm008.length > 0) {
+          // Авторасчитываемые показатели найдены
         }
         
         // Анализ валидации для каждого показателя
         if (form008Data.min_max) {
-          
           form008Data.indicators.forEach(indicator => {
             const validation = form008Data.min_max?.[indicator.code];
           });
         } else {
+          // Валидация min_max не получена
         }
       }
     }
@@ -119,7 +109,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
   // Отладочная информация для indicatorsData
   useEffect(() => {
     if (indicatorsData) {
-      
       // Анализ авторасчитываемых показателей
       const allIndicators = [
         ...((indicatorsData as any).required_indicators || []),
@@ -127,43 +116,22 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
       ];
       
       const autoCalculated = allIndicators.filter(ind => ind.is_auto_calculated);
-        total: autoCalculated.length,
-        list: autoCalculated.map(ind => ({ 
-          id: ind.id, 
-          name: ind.name, 
-          code: ind.code,
-          is_auto_calculated: ind.is_auto_calculated 
-        }))
-      });
       
       // Дополнительная проверка структуры показателей
       if (allIndicators.length > 0) {
         const sampleIndicator = allIndicators[0];
-          id: sampleIndicator.id,
-          name: sampleIndicator.name,
-          code: sampleIndicator.code,
-          is_auto_calculated: sampleIndicator.is_auto_calculated,
-          allFields: Object.keys(sampleIndicator),
-          fullObject: sampleIndicator
-        });
         
         // Проверяем поля валидации
         const validationFields = ['validation', 'rules', 'constraints', 'min', 'max', 'required', 'type'];
         const foundValidationFields = validationFields.filter(field => field in sampleIndicator);
         
         if (foundValidationFields.length === 0) {
+          // Поля валидации не найдены в показателе
         }
       }
       
       // Анализ валидации для определения авторасчитываемых показателей
       if (form008Data?.warnings) {
-          warningsCount: form008Data.warnings.length,
-          warnings: form008Data.warnings.map(w => ({
-            level: w.level,
-            message: w.message
-          }))
-        });
-        
         // Поиск авторасчитываемых показателей в валидации
         const autoCalcWarnings = form008Data.warnings.filter(w => 
           w.message.toLowerCase().includes('авторасчет') || 
@@ -172,6 +140,7 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
         );
         
         if (autoCalcWarnings.length > 0) {
+          // Найдены предупреждения об авторасчетах
         }
       }
     }
@@ -227,12 +196,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
     const autoCalculatedIndicators = indicators.filter(indicator => indicatorIsAutoCalculated(indicator));
     const filteredIndicators = indicators.filter(indicator => !indicatorIsAutoCalculated(indicator));
     
-      total: indicators.length,
-      autoCalculated: autoCalculatedIndicators.length,
-      filtered: filteredIndicators.length,
-      autoCalculatedList: autoCalculatedIndicators.map(ind => ({ id: ind.id, name: ind.name, code: ind.code }))
-    });
-    
     return (
       <Card variant="outlined" sx={{ height: '100%' }}>
         <CardContent>
@@ -270,12 +233,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
     // Фильтруем авторасчитываемые показатели
     const autoCalculatedCurrent = currentIndicators.filter(indicator => indicatorIsAutoCalculated(indicator));
     const filteredCurrentIndicators = currentIndicators.filter(indicator => !indicatorIsAutoCalculated(indicator));
-    
-      total: currentIndicators.length,
-      autoCalculated: autoCalculatedCurrent.length,
-      filtered: filteredCurrentIndicators.length,
-      autoCalculatedList: autoCalculatedCurrent.map(ind => ({ id: ind.id, name: ind.name, code: ind.code }))
-    });
     
     return (
       <Card variant="outlined">
@@ -343,13 +300,6 @@ export const Form008IndicatorsManagementDialog: React.FC<Form008IndicatorsManage
     const availableRecommended = allRecommended
       .filter(ind => !currentIndicatorIds.includes(ind.id) && !ind.is_auto_calculated);
     
-      total: allRecommended.length,
-      autoCalculated: autoCalculatedRecommended.length,
-      alreadyAdded: allRecommended.filter(ind => currentIndicatorIds.includes(ind.id)).length,
-      available: availableRecommended.length,
-      autoCalculatedList: autoCalculatedRecommended.map(ind => ({ id: ind.id, name: ind.name, code: ind.code }))
-    });
-
     return (
       <Card variant="outlined">
         <CardContent>
