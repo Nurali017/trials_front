@@ -32,6 +32,7 @@ import { useSnackbar } from 'notistack';
 import { OriginatorDialog } from './OriginatorDialog';
 import apiClient from '@/api/client';
 import type { OriginatorWithPercentage } from '@/types/api.types';
+import { invalidateSortQueries } from '@/utils/queryKeys';
 
 interface CreateSortDialogProps {
   open: boolean;
@@ -152,26 +153,31 @@ export const CreateSortDialog: React.FC<CreateSortDialogProps> = ({ open, onClos
       // Call Django API to create sort
       const response = await apiClient.post('/sort-records/', requestData);
       const createdSort = response.data;
-      
+
+      console.log('✨ [CreateSortDialog] Sort created successfully:', {
+        django_id: createdSort.id,
+        patents_sort_id: createdSort.sort_id,
+        name: createdSort.name,
+        full_response: createdSort
+      });
+
       // Show success message
       enqueueSnackbar('Сорт успешно создан!', { variant: 'success' });
 
       // Invalidate queries to refresh the available sorts list
-      queryClient.invalidateQueries({ queryKey: ['trials', 'available-sorts'] });
-      queryClient.invalidateQueries({ queryKey: ['sort-records'] });
-      queryClient.invalidateQueries({ queryKey: ['patents-sorts'] });
+      invalidateSortQueries(queryClient);
 
       // Call onSuccess callback if provided
-      if (onSuccess && createdSort?.id) {
-        onSuccess(createdSort.id);
+      if (onSuccess && createdSort?.sort_id) {
+        console.log('📤 [CreateSortDialog] Calling onSuccess with patents_sort_id:', createdSort.sort_id);
+        onSuccess(createdSort.sort_id); // Передаем patents_sort_id вместо id записи
+      } else if (onSuccess && !createdSort?.sort_id) {
+        console.warn('⚠️ [CreateSortDialog] sort_id is missing in response!', createdSort);
       }
 
       // Reset form and close
       handleClose();
     } catch (err: any) {
-      console.error('Error creating sort:', err);
-      console.error('Full error response:', err.response?.data);
-      
       // Обработка ошибок Django REST Framework
       let errorMessage = 'Ошибка при создании сорта';
       

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -22,17 +22,37 @@ import {
   Select,
   MenuItem,
   InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { useSnackbar } from 'notistack';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAvailableSorts } from '@/hooks/useTrials';
 import { useCultureGroups, useCultures, useOblasts } from '@/hooks/useDictionaries';
 import { useCreateApplication } from '@/hooks/useApplications';
 import { useDocuments } from '@/hooks/useDocuments';
 import { getTodayISO } from '@/utils/dateHelpers';
+import {
+  saveFormToStorage,
+  loadFormFromStorage,
+  clearFormFromStorage,
+  hasStoredForm,
+  getStoredFormMetadata,
+} from '@/utils/formStorage';
+import { invalidateSortQueries, QUERY_KEYS } from '@/utils/queryKeys';
+import { debounce } from '@/utils/debounce';
 import { AvailableSort, CreateApplicationRequest, CultureGroup, Culture, DocumentType } from '@/types/api.types';
+import apiClient from '@/api/client';
 import { CreateSortDialog } from '@/components/forms/CreateSortDialog';
 import { DocumentUpload } from '@/components/forms/DocumentUpload';
 
@@ -51,13 +71,17 @@ interface FormData {
 }
 
 const steps = ['Выбор сорта', 'Информация о заявке', 'Загрузка документов', 'Выбор целевых областей'];
+const FORM_STORAGE_ID = 'new_application'; // ID для localStorage
 
 export const ApplicationCreate: React.FC = () => {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
   const [activeStep, setActiveStep] = useState(0);
   const [searchQuery, setSearchQuery] = useState<string | undefined>(undefined);
   const [createSortDialogOpen, setCreateSortDialogOpen] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [storedFormData, setStoredFormData] = useState<any>(null);
   
   // Cascade selection states
   const [selectedCultureGroup, setSelectedCultureGroup] = useState<CultureGroup | null>(null);
@@ -65,13 +89,16 @@ export const ApplicationCreate: React.FC = () => {
   const [selectedSort, setSelectedSort] = useState<AvailableSort | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ file: File; type: DocumentType; title: string }>>([]);
   const [hasAllRequiredDocs, setHasAllRequiredDocs] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [isRefreshingSorts, setIsRefreshingSorts] = useState(false);
 
-  const { data: cultureGroups, isLoading: loadingCultureGroups } = useCultureGroups();
-  const { data: cultures, isLoading: loadingCultures } = useCultures(selectedCultureGroup?.id);
-  const { data: availableSorts, isLoading: loadingSorts } = useAvailableSorts(searchQuery, selectedCulture?.id);
+  const { data: cultureGroups, isLoading: loadingCultureGroups, error: errorCultureGroups } = useCultureGroups();
+  const { data: cultures, isLoading: loadingCultures, error: errorCultures } = useCultures(selectedCultureGroup?.id);
+  const { data: availableSorts, isLoading: loadingSorts, error: errorSorts } = useAvailableSorts(searchQuery, selectedCulture?.id);
   const { data: oblasts, isLoading: loadingOblasts } = useOblasts();
   const { mutate: createApplication, isPending } = useCreateApplication();
-  const { uploadDocument } = useDocuments();
+  const { uploadDocumentAsync } = useDocuments();
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
 
   const {
     control,
@@ -97,6 +124,62 @@ export const ApplicationCreate: React.FC = () => {
 
   const sortRecord = watch('sort_record');
   const selectedOblasts = watch('target_oblasts');
+  const formValues = watch(); // Следим за всеми значениями формы
+
+  // Debounced поиск сортов (задержка 300мс)
+  const debouncedSearch = useMemo(
+    () => debounce((value: string) => {
+      setSearchQuery(value || undefined);
+    }, 300),
+    []
+  );
+
+  // Проверяем наличие сохраненных данных при монтировании
+  useEffect(() => {
+    if (hasStoredForm(FORM_STORAGE_ID)) {
+      const stored = loadFormFromStorage(FORM_STORAGE_ID);
+      if (stored) {
+        setStoredFormData(stored);
+        setRestoreDialogOpen(true);
+      }
+    }
+  }, []);
+
+  // Автосохранение формы каждые 30 секунд
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Сохраняем только если есть какие-то данные
+      if (
+        formValues.application_number ||
+        formValues.applicant ||
+        formValues.sort_record
+      ) {
+        const dataToSave = {
+          formValues,
+          activeStep,
+          selectedCultureGroup,
+          selectedCulture,
+          selectedSort,
+          uploadedFiles: uploadedFiles.map((f) => ({
+            name: f.file.name,
+            size: f.file.size,
+            type: f.type,
+            title: f.title,
+          })), // Сохраняем метаданные файлов (сами файлы нельзя сериализовать)
+        };
+        saveFormToStorage(FORM_STORAGE_ID, dataToSave);
+      }
+    }, 30000); // 30 секунд
+
+    return () => clearInterval(interval);
+  }, [
+    formValues,
+    activeStep,
+    selectedCultureGroup,
+    selectedCulture,
+    selectedSort,
+    uploadedFiles,
+  ]);
 
   const handleNext = () => {
     setActiveStep((prev) => prev + 1);
@@ -104,6 +187,34 @@ export const ApplicationCreate: React.FC = () => {
 
   const handleBack = () => {
     setActiveStep((prev) => prev - 1);
+  };
+
+  // Восстановление данных из localStorage
+  const handleRestoreForm = () => {
+    if (storedFormData) {
+      // Восстанавливаем значения формы
+      Object.keys(storedFormData.formValues).forEach((key) => {
+        setValue(key as any, storedFormData.formValues[key]);
+      });
+
+      // Восстанавливаем состояние
+      setActiveStep(storedFormData.activeStep || 0);
+      setSelectedCultureGroup(storedFormData.selectedCultureGroup || null);
+      setSelectedCulture(storedFormData.selectedCulture || null);
+      setSelectedSort(storedFormData.selectedSort || null);
+
+      // Примечание: файлы нельзя восстановить, так как File объекты не сериализуются
+      // Пользователю нужно будет загрузить их заново
+
+      enqueueSnackbar('Данные формы восстановлены', { variant: 'info' });
+    }
+    setRestoreDialogOpen(false);
+  };
+
+  // Отклонение восстановления
+  const handleDiscardStoredForm = () => {
+    clearFormFromStorage(FORM_STORAGE_ID);
+    setRestoreDialogOpen(false);
   };
 
   const onSubmit = async (data: FormData) => {
@@ -134,34 +245,67 @@ export const ApplicationCreate: React.FC = () => {
     };
 
     createApplication(payload, {
-      onSuccess: (application) => {
+      onSuccess: async (application) => {
         enqueueSnackbar('Заявка успешно создана!', { variant: 'success' });
 
         // Загружаем документы
         if (uploadedFiles.length > 0) {
-          let uploadedCount = 0;
-          uploadedFiles.forEach((uploadedFile) => {
-            uploadDocument({
-              documentType: uploadedFile.type,
-              file: uploadedFile.file,
-              applicationId: application.id,
-              customTitle: uploadedFile.title,
-            });
-            uploadedCount++;
-            
-            if (uploadedCount === uploadedFiles.length) {
-              enqueueSnackbar(`Загружено ${uploadedCount} документов`, { variant: 'success' });
-              navigate(`/applications/${application.id}`);
-            }
+          setIsUploadingDocuments(true);
+          // Инициализируем прогресс для каждого файла
+          const initialProgress: Record<string, number> = {};
+          uploadedFiles.forEach((file) => {
+            initialProgress[file.title] = 0;
           });
+          setUploadProgress(initialProgress);
+
+          try {
+            // Загружаем все документы параллельно с retry механизмом
+            await Promise.all(
+              uploadedFiles.map((uploadedFile) =>
+                uploadWithRetry({
+                  documentType: uploadedFile.type,
+                  file: uploadedFile.file,
+                  applicationId: application.id,
+                  customTitle: uploadedFile.title,
+                  onUploadProgress: (progressEvent) => {
+                    const percentCompleted = Math.round(
+                      (progressEvent.loaded * 100) / progressEvent.total
+                    );
+                    setUploadProgress((prev) => ({
+                      ...prev,
+                      [uploadedFile.title]: percentCompleted,
+                    }));
+                  },
+                })
+              )
+            );
+
+            enqueueSnackbar(
+              `Заявка и ${uploadedFiles.length} документов успешно загружены!`,
+              { variant: 'success' }
+            );
+
+            // Очищаем файлы из памяти и localStorage
+            setUploadedFiles([]);
+            clearFormFromStorage(FORM_STORAGE_ID);
+            navigate(`/applications/${application.id}`);
+          } catch (error) {
+            enqueueSnackbar(
+              'Заявка создана, но не все документы загружены. Попробуйте загрузить их позже на странице заявки.',
+              { variant: 'warning' }
+            );
+            // Всё равно переходим на страницу заявки
+            navigate(`/applications/${application.id}`);
+          } finally {
+            setIsUploadingDocuments(false);
+          }
         } else {
+          // Очищаем localStorage при успешном создании
+          clearFormFromStorage(FORM_STORAGE_ID);
           navigate(`/applications/${application.id}`);
         }
       },
       onError: (error: any) => {
-        console.error('Error creating application:', error);
-        console.error('Full error response:', error.response?.data);
-        
         // Обработка ошибок Django REST Framework
         let errorMessage = 'Ошибка при создании заявки';
         
@@ -218,10 +362,92 @@ export const ApplicationCreate: React.FC = () => {
     setValue('target_oblasts', newOblasts);
   };
 
-  const handleSortCreated = (newSortId: number) => {
-    // Сорт уже создан, сообщение показывается в CreateSortDialog
-    // Принудительно обновляем список доступных сортов
-    window.location.reload();
+  // Retry механизм для загрузки документов
+  const uploadWithRetry = async (
+    uploadParams: {
+      documentType: DocumentType;
+      file: File;
+      applicationId: number;
+      customTitle: string;
+      onUploadProgress?: (progressEvent: any) => void;
+    },
+    maxRetries = 3
+  ) => {
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await uploadDocumentAsync(uploadParams);
+        return result;
+      } catch (error) {
+        lastError = error;
+
+        // Если это последняя попытка, бросаем ошибку
+        if (attempt === maxRetries) {
+          throw error;
+        }
+
+        // Экспоненциальная задержка: 1s, 2s, 4s
+        const delay = 1000 * Math.pow(2, attempt - 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Показываем уведомление о повторной попытке
+        enqueueSnackbar(
+          `Повторная попытка загрузки ${uploadParams.customTitle} (попытка ${attempt + 1} из ${maxRetries})`,
+          { variant: 'info', autoHideDuration: 2000 }
+        );
+      }
+    }
+
+    throw lastError;
+  };
+
+  const handleSortCreated = async (newSortId: number) => {
+    try {
+      setIsRefreshingSorts(true);
+
+      console.log('🔍 [Sort Auto-Selection] Starting...');
+      console.log('📥 [Sort Auto-Selection] Received patents_sort_id:', newSortId);
+
+      // 🚀 ОПТИМИЗАЦИЯ: Запрашиваем ТОЛЬКО созданный сорт по ID (мгновенно!)
+      // Вместо загрузки 2169 сортов (35 секунд, 2.3 MB) → 1 сорт (~1 KB, <1 сек)
+      console.log('⚡ [Sort Auto-Selection] Fetching sort by ID (fast!)...');
+
+      const startTime = performance.now();
+
+      // Прямой запрос конкретного сорта
+      const { data: newSort } = await apiClient.get<AvailableSort>(`/patents/sorts/${newSortId}/`);
+
+      const endTime = performance.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+      console.log(`⏱️ [Sort Auto-Selection] Fetched in ${duration}s (was 35s before!)`);
+      console.log('✅ [Sort Auto-Selection] FOUND! Selected sort:', {
+        id: newSort.id,
+        name: newSort.name,
+        code: newSort.code,
+        culture: newSort.culture
+      });
+
+      // Автоматически выбираем созданный сорт
+      setSelectedSort(newSort);
+      setValue('sort_record', newSortId);
+      enqueueSnackbar('Сорт создан и автоматически выбран!', { variant: 'success' });
+
+      // Инвалидируем кэш availableSorts в фоне (неблокирующе)
+      // чтобы при следующем открытии списка данные обновились
+      invalidateSortQueries(queryClient);
+
+    } catch (error) {
+      console.error('❌ [Sort Auto-Selection] Error fetching sort:', error);
+      enqueueSnackbar('Ошибка при загрузке созданного сорта', { variant: 'error' });
+
+      // Fallback: инвалидируем кэш для повторной попытки
+      invalidateSortQueries(queryClient);
+    } finally {
+      setIsRefreshingSorts(false);
+      console.log('🏁 [Sort Auto-Selection] Finished');
+    }
   };
 
   // Step 1: Sort Selection
@@ -234,6 +460,23 @@ export const ApplicationCreate: React.FC = () => {
         Сначала выберите группу культуры, затем культуру, затем сорт
       </Typography>
 
+      {/* Ошибки загрузки */}
+      {errorCultureGroups && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Ошибка загрузки групп культур. Попробуйте обновить страницу.
+        </Alert>
+      )}
+      {errorCultures && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Ошибка загрузки культур. Попробуйте обновить страницу.
+        </Alert>
+      )}
+      {errorSorts && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Ошибка загрузки сортов. Попробуйте обновить страницу.
+        </Alert>
+      )}
+
       <Grid container spacing={3}>
         {/* Culture Group Selection */}
         <Grid item xs={12}>
@@ -243,6 +486,13 @@ export const ApplicationCreate: React.FC = () => {
             value={selectedCultureGroup}
             getOptionLabel={(option) => option.name || ''}
             onChange={(_, value) => {
+              // Предупреждение при изменении группы, если уже есть выбранные данные
+              if ((selectedCulture || selectedSort) && value?.id !== selectedCultureGroup?.id) {
+                if (!window.confirm('Смена группы культуры сбросит выбранную культуру и сорт. Продолжить?')) {
+                  return;
+                }
+              }
+
               setSelectedCultureGroup(value);
               setSelectedCulture(null);
               setSelectedSort(null);
@@ -276,6 +526,13 @@ export const ApplicationCreate: React.FC = () => {
             disabled={!selectedCultureGroup}
             getOptionLabel={(option) => option.name || ''}
             onChange={(_, value) => {
+              // Предупреждение при изменении культуры, если уже есть выбранный сорт
+              if (selectedSort && value?.id !== selectedCulture?.id) {
+                if (!window.confirm('Смена культуры сбросит выбранный сорт. Продолжить?')) {
+                  return;
+                }
+              }
+
               setSelectedCulture(value);
               setSelectedSort(null);
               setValue('sort_record', null);
@@ -308,9 +565,9 @@ export const ApplicationCreate: React.FC = () => {
             render={({ field }) => (
               <Autocomplete<AvailableSort>
                 options={availableSorts || []}
-                loading={loadingSorts}
+                loading={loadingSorts || isRefreshingSorts}
                 value={selectedSort}
-                disabled={!selectedCulture}
+                disabled={!selectedCulture || isRefreshingSorts}
                 getOptionLabel={(option) => option.name || ''}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 filterOptions={(options, { inputValue }) => {
@@ -326,7 +583,7 @@ export const ApplicationCreate: React.FC = () => {
                   !selectedCulture ? 'Сначала выберите культуру' :
                   loadingSorts ? 'Загрузка...' : 'Сорта не найдены'
                 }
-                onInputChange={(_, value) => setSearchQuery(value)}
+                onInputChange={(_, value) => debouncedSearch(value)}
                 onChange={(_, value) => {
                   setSelectedSort(value);
                   field.onChange(value?.id || null);
@@ -371,6 +628,18 @@ export const ApplicationCreate: React.FC = () => {
           />
         </Grid>
 
+        {/* Индикатор загрузки при обновлении списка сортов */}
+        {isRefreshingSorts && (
+          <Grid item xs={12}>
+            <Alert severity="info">
+              <Box display="flex" alignItems="center" gap={1}>
+                <CircularProgress size={20} />
+                <Typography>Обновление списка сортов...</Typography>
+              </Box>
+            </Alert>
+          </Grid>
+        )}
+
         {/* Create New Sort Button - только если сорт не выбран */}
         {!selectedSort && (
           <Grid item xs={12}>
@@ -378,7 +647,7 @@ export const ApplicationCreate: React.FC = () => {
               variant="outlined"
               startIcon={<AddIcon />}
               onClick={() => setCreateSortDialogOpen(true)}
-              disabled={!selectedCulture}
+              disabled={!selectedCulture || isRefreshingSorts}
               fullWidth
             >
               Не нашли нужный сорт? Создайте новый
@@ -749,6 +1018,38 @@ export const ApplicationCreate: React.FC = () => {
           Выберите области, в которых планируется проведение сортоиспытаний
         </Typography>
 
+        {/* Прогресс загрузки документов */}
+        {isUploadingDocuments && Object.keys(uploadProgress).length > 0 && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+              Загрузка документов...
+            </Typography>
+            <List dense>
+              {Object.entries(uploadProgress).map(([title, progress]) => (
+                <ListItem key={title} sx={{ px: 0 }}>
+                  <ListItemText
+                    primary={
+                      <Box display="flex" alignItems="center" justifyContent="space-between" mb={0.5}>
+                        <Typography variant="body2">{title}</Typography>
+                        <Typography variant="body2" fontWeight="bold">
+                          {progress}%
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={
+                      <LinearProgress
+                        variant="determinate"
+                        value={progress}
+                        sx={{ height: 6, borderRadius: 1 }}
+                      />
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Alert>
+        )}
+
         {loadingOblasts ? (
           <Box display="flex" justifyContent="center" py={4}>
             <CircularProgress />
@@ -838,9 +1139,10 @@ export const ApplicationCreate: React.FC = () => {
             <Button
               variant="contained"
               onClick={handleSubmit(onSubmit)}
-              disabled={isPending || (selectedOblasts?.length === 0 && allOblasts && allOblasts.length > 0)}
+              disabled={isPending || isUploadingDocuments || (selectedOblasts?.length === 0 && allOblasts && allOblasts.length > 0)}
+              startIcon={isUploadingDocuments ? <CircularProgress size={20} color="inherit" /> : undefined}
             >
-              {isPending ? 'Создание...' : 'Создать заявку'}
+              {isUploadingDocuments ? 'Загрузка документов...' : isPending ? 'Создание...' : 'Создать заявку'}
             </Button>
           </Box>
         </Box>
@@ -882,6 +1184,39 @@ export const ApplicationCreate: React.FC = () => {
         cultureGroup={selectedCultureGroup}
         onSuccess={handleSortCreated}
       />
+
+      {/* Restore Form Dialog */}
+      <Dialog
+        open={restoreDialogOpen}
+        onClose={handleDiscardStoredForm}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Восстановить несохраненные данные?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Обнаружены несохраненные данные формы{' '}
+            {storedFormData && getStoredFormMetadata(FORM_STORAGE_ID) && (
+              <strong>({getStoredFormMetadata(FORM_STORAGE_ID)?.age})</strong>
+            )}
+            . Хотите восстановить их и продолжить заполнение?
+          </DialogContentText>
+          {storedFormData?.uploadedFiles && storedFormData.uploadedFiles.length > 0 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              Примечание: загруженные файлы не могут быть восстановлены. Вам нужно будет
+              загрузить их заново.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDiscardStoredForm} color="error">
+            Начать заново
+          </Button>
+          <Button onClick={handleRestoreForm} variant="contained" autoFocus>
+            Восстановить
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
