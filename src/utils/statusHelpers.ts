@@ -39,7 +39,7 @@ export const getApplicationStatusMuiColor = (
     submitted: 'info',
     distributed: 'secondary',
     in_progress: 'warning',
-    completed: 'info',
+    completed: 'primary',  // Changed from 'info' to 'primary' for better distinction
     registered: 'success',
     rejected: 'error',
   };
@@ -126,4 +126,13 @@ export const getDecisionDescription = (decision: DecisionType): string => {
 export const calculateProgress = (completed: number, total: number): number => {
   if (total === 0) return 0;
   return Math.round((completed / total) * 100);
+};
+
+// Get progress bar color based on percentage
+export const getProgressColor = (
+  progress: number
+): 'error' | 'warning' | 'success' => {
+  if (progress < 30) return 'error';
+  if (progress < 70) return 'warning';
+  return 'success';
 };

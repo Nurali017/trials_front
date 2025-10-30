@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -20,18 +20,17 @@ import {
   DialogActions,
   TextField,
   Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   FormControlLabel,
   Checkbox,
+  TablePagination,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Close as CloseIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 import { useOriginators, useCreateOriginator, useUpdateOriginator, useDeleteOriginator } from '@/hooks/useDictionaries';
@@ -55,10 +54,81 @@ export const OriginatorsPage: React.FC = () => {
     is_nanoc: false,
   });
 
+  // Search and filter state
+  const [searchValue, setSearchValue] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterForeign, setFilterForeign] = useState<boolean | null>(null);
+  const [filterNanoc, setFilterNanoc] = useState<boolean | null>(null);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+
+  // Debounce search input
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearch(searchValue);
+      setPage(0); // Reset to first page on search
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchValue]);
+
   const { data: originators = [], isLoading, error } = useOriginators();
   const { mutate: createOriginator, isPending: isCreating } = useCreateOriginator();
   const { mutate: updateOriginator, isPending: isUpdating } = useUpdateOriginator();
   const { mutate: deleteOriginator, isPending: isDeleting } = useDeleteOriginator();
+
+  // Memoized filtered data
+  const filteredOriginators = useMemo(() => {
+    return originators.filter((originator) => {
+      // Search filter
+      if (debouncedSearch) {
+        const searchLower = debouncedSearch.toLowerCase();
+        const matchesSearch =
+          originator.name.toLowerCase().includes(searchLower) ||
+          originator.code?.toString().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
+
+      // Foreign filter
+      if (filterForeign !== null && originator.is_foreign !== filterForeign) {
+        return false;
+      }
+
+      // Nanoc filter
+      if (filterNanoc !== null && originator.is_nanoc !== filterNanoc) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [originators, debouncedSearch, filterForeign, filterNanoc]);
+
+  // Memoized paginated data
+  const paginatedOriginators = useMemo(() => {
+    const startIndex = page * rowsPerPage;
+    return filteredOriginators.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredOriginators, page, rowsPerPage]);
+
+  // Pagination handlers
+  const handleChangePage = useCallback((_event: unknown, newPage: number) => {
+    setPage(newPage);
+  }, []);
+
+  const handleChangeRowsPerPage = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  }, []);
+
+  // Filter handlers
+  const handleForeignFilterChange = useCallback((value: boolean | null) => {
+    setFilterForeign(value);
+    setPage(0);
+  }, []);
+
+  const handleNanocFilterChange = useCallback((value: boolean | null) => {
+    setFilterNanoc(value);
+    setPage(0);
+  }, []);
 
   const handleOpenDialog = (originator?: Originator) => {
     if (originator) {
@@ -175,6 +245,60 @@ export const OriginatorsPage: React.FC = () => {
         </Button>
       </Box>
 
+      {/* Search and Filters */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              placeholder="Поиск по названию или коду..."
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <Box display="flex" gap={1} flexWrap="wrap">
+              <Chip
+                label="Все"
+                onClick={() => handleForeignFilterChange(null)}
+                color={filterForeign === null ? 'primary' : 'default'}
+                variant={filterForeign === null ? 'filled' : 'outlined'}
+              />
+              <Chip
+                label="Иностранные"
+                onClick={() => handleForeignFilterChange(true)}
+                color={filterForeign === true ? 'warning' : 'default'}
+                variant={filterForeign === true ? 'filled' : 'outlined'}
+              />
+              <Chip
+                label="Местные"
+                onClick={() => handleForeignFilterChange(false)}
+                color={filterForeign === false ? 'success' : 'default'}
+                variant={filterForeign === false ? 'filled' : 'outlined'}
+              />
+              <Chip
+                label="НАНОЦ"
+                onClick={() => handleNanocFilterChange(filterNanoc === true ? null : true)}
+                color={filterNanoc === true ? 'primary' : 'default'}
+                variant={filterNanoc === true ? 'filled' : 'outlined'}
+              />
+            </Box>
+          </Grid>
+        </Grid>
+        <Box mt={2}>
+          <Typography variant="body2" color="text.secondary">
+            Показано: {filteredOriginators.length} из {originators.length} оригинаторов
+          </Typography>
+        </Box>
+      </Paper>
+
       <Paper>
         <TableContainer>
           <Table>
@@ -188,8 +312,17 @@ export const OriginatorsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {originators.map((originator) => (
-                <TableRow key={originator.id}>
+              {paginatedOriginators.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} align="center">
+                    <Typography variant="body2" color="text.secondary" py={3}>
+                      {isLoading ? 'Загрузка...' : 'Оригинаторы не найдены'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedOriginators.map((originator) => (
+                  <TableRow key={originator.id}>
                   <TableCell>
                     <Typography variant="body2" fontWeight="medium">
                       {originator.name}
@@ -243,10 +376,24 @@ export const OriginatorsPage: React.FC = () => {
                     </IconButton>
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>
+        <TablePagination
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          component="div"
+          count={filteredOriginators.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          labelRowsPerPage="Строк на странице:"
+          labelDisplayedRows={({ from, to, count }) =>
+            `${from}–${to} из ${count !== -1 ? count : `более чем ${to}`}`
+          }
+        />
       </Paper>
 
       {/* Create/Edit Dialog */}

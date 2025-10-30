@@ -10,7 +10,7 @@ export const dictionaryKeys = {
   indicators: (culture_id?: number, is_universal?: boolean) => ['indicators', culture_id, is_universal] as const,
   cultureGroups: ['culture-groups'] as const,
   cultures: (cultureGroup?: number) => ['cultures', cultureGroup] as const,
-  originators: ['originators'] as const,
+  originators: (filters?: Record<string, any>) => ['originators', filters] as const,
   sortRecords: (filters?: Record<string, any>) => ['sort-records', filters] as const,
 };
 
@@ -136,11 +136,18 @@ export const useCultures = (cultureGroup?: number) => {
 };
 
 // Originators
-export const useOriginators = () => {
+export const useOriginators = (filters?: {
+  search?: string;
+  is_foreign?: boolean;
+  is_nanoc?: boolean;
+  has_code?: boolean;
+  ordering?: string;
+}) => {
   return useQuery({
-    queryKey: dictionaryKeys.originators,
-    queryFn: () => dictionariesService.originators.getAll(),
-    staleTime: 1000 * 60 * 60, // 1 hour
+    queryKey: dictionaryKeys.originators(filters),
+    queryFn: () => dictionariesService.originators.getAll(filters),
+    staleTime: 1000 * 60 * 30, // 30 minutes (dictionaries update less frequently)
+    gcTime: 1000 * 60 * 60, // Keep in cache for 1 hour
   });
 };
 
@@ -152,7 +159,7 @@ export const useCreateOriginator = () => {
     mutationFn: (data: Omit<Originator, 'id' | 'originator_id' | 'synced_at' | 'created_at' | 'updated_at'>) =>
       dictionariesService.originators.create(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dictionaryKeys.originators });
+      queryClient.invalidateQueries({ queryKey: ['originators'] });
     },
   });
 };
@@ -165,7 +172,7 @@ export const useUpdateOriginator = () => {
     mutationFn: ({ id, data }: { id: number; data: Partial<Originator> }) =>
       dictionariesService.originators.update(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dictionaryKeys.originators });
+      queryClient.invalidateQueries({ queryKey: ['originators'] });
     },
   });
 };
@@ -177,7 +184,7 @@ export const useDeleteOriginator = () => {
   return useMutation({
     mutationFn: (id: number) => dictionariesService.originators.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dictionaryKeys.originators });
+      queryClient.invalidateQueries({ queryKey: ['originators'] });
     },
   });
 };

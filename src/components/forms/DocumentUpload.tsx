@@ -17,7 +17,6 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  TextField,
 } from '@mui/material';
 import {
   Upload as UploadIcon,
@@ -25,6 +24,7 @@ import {
   Description as FileIcon,
   CheckCircle as CheckIcon,
 } from '@mui/icons-material';
+import { useSnackbar } from 'notistack';
 import type { DocumentType } from '@/types/api.types';
 import {
   DOCUMENT_TYPE_LABELS,
@@ -34,6 +34,19 @@ import {
   isMandatoryDocument,
   isConditionalDocument,
 } from '@/utils/documentHelpers';
+
+// Константы валидации
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/jpg',
+  'image/png'
+];
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
 
 interface UploadedFile {
   file: File;
@@ -52,6 +65,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
   onValidationChange,
   initialFiles = [],
 }) => {
+  const { enqueueSnackbar } = useSnackbar();
   const [files, setFiles] = useState<UploadedFile[]>(initialFiles);
   const [selectedType, setSelectedType] = useState<DocumentType>('application_for_testing');
 
@@ -79,16 +93,42 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Сбрасываем input сразу
+    event.target.value = '';
+
     // Проверяем, не загружен ли уже документ этого типа (кроме "other")
     if (selectedType !== 'other' && uploadedTypes.includes(selectedType)) {
-      alert('Документ этого типа уже загружен. Удалите предыдущий, если хотите заменить.');
-      event.target.value = ''; // Сбрасываем input
+      enqueueSnackbar('Документ этого типа уже загружен. Удалите предыдущий, если хотите заменить.', {
+        variant: 'warning'
+      });
       return;
     }
 
-    // Автоматически добавляем документ после выбора файла
+    // Валидация размера файла
+    if (file.size > MAX_FILE_SIZE) {
+      enqueueSnackbar(
+        `Файл слишком большой. Максимальный размер: ${MAX_FILE_SIZE / 1024 / 1024} МБ. Размер вашего файла: ${(file.size / 1024 / 1024).toFixed(2)} МБ`,
+        { variant: 'error' }
+      );
+      return;
+    }
+
+    // Валидация типа файла по MIME
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      // Дополнительная проверка по расширению (на случай если MIME тип не определился)
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+        enqueueSnackbar(
+          'Недопустимый тип файла. Разрешены только: PDF, DOC, DOCX, JPG, PNG',
+          { variant: 'error' }
+        );
+        return;
+      }
+    }
+
+    // Автоматически добавляем документ после успешной валидации
     const title = getFilenameWithoutExtension(file.name);
-    
+
     const newFile: UploadedFile = {
       file: file,
       type: selectedType,
@@ -96,10 +136,8 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
     };
 
     setFiles([...files, newFile]);
-    
-    // Сбрасываем input
-    event.target.value = '';
-    
+    enqueueSnackbar(`Файл "${file.name}" добавлен`, { variant: 'success' });
+
     // Автоматически переключаемся на следующий обязательный тип
     const nextMissingType = MANDATORY_APPLICATION_DOCUMENTS.find(
       (type) => type !== selectedType && !uploadedTypes.includes(type)
@@ -118,9 +156,12 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
       <Typography variant="h6" gutterBottom>
         Загрузка документов
       </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+      <Typography variant="body2" color="text.secondary" gutterBottom>
         Загрузите все необходимые документы для заявки
       </Typography>
+      <Alert severity="info" sx={{ mb: 3 }}>
+        Разрешенные форматы: PDF, DOC, DOCX, JPG, PNG. Максимальный размер файла: 10 МБ
+      </Alert>
 
       {/* Форма загрузки */}
       <Card sx={{ mb: 3 }}>
@@ -191,7 +232,7 @@ export const DocumentUpload: React.FC<DocumentUploadProps> = ({
                 <input
                   type="file"
                   hidden
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
                   onChange={handleFileSelect}
                 />
               </Button>

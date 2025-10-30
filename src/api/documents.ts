@@ -15,12 +15,15 @@ export const documentsService = {
   },
 
   // Upload a new document
-  upload: async (payload: CreateDocumentRequest): Promise<Document> => {
+  upload: async (
+    payload: CreateDocumentRequest,
+    onUploadProgress?: (progressEvent: any) => void
+  ): Promise<Document> => {
     const formData = new FormData();
     formData.append('title', payload.title);
     formData.append('document_type', payload.document_type);
     formData.append('is_mandatory', String(payload.is_mandatory));
-    
+
     if (payload.application) {
       formData.append('application', String(payload.application));
     }
@@ -35,6 +38,7 @@ export const documentsService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress,
     });
     return data;
   },
@@ -62,7 +66,8 @@ export const documentsService = {
       applicationId?: number;
       trialId?: number;
     },
-    customTitle?: string
+    customTitle?: string,
+    onUploadProgress?: (progressEvent: any) => void
   ): Promise<Document> => {
     // Используем имя файла без расширения как название по умолчанию
     const defaultTitle = customTitle || file.name.replace(/\.[^/.]+$/, '');
@@ -76,7 +81,7 @@ export const documentsService = {
       trial: context.trialId,
     };
 
-    return documentsService.upload(payload);
+    return documentsService.upload(payload, onUploadProgress);
   },
 
   /**

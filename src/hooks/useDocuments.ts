@@ -9,6 +9,7 @@ interface UploadDocumentParams {
   applicationId?: number;
   trialId?: number;
   customTitle?: string;
+  onUploadProgress?: (progressEvent: any) => void;
 }
 
 export function useDocuments() {
@@ -26,7 +27,8 @@ export function useDocuments() {
           applicationId: params.applicationId,
           trialId: params.trialId,
         },
-        params.customTitle
+        params.customTitle,
+        params.onUploadProgress
       );
       setUploadProgress(100);
       return result;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Grid,
   Card,
@@ -10,15 +10,20 @@ import {
   Alert,
   Box,
   Divider,
+  TextField,
+  InputAdornment,
+  ToggleButtonGroup,
+  ToggleButton,
+  Stack,
 } from '@mui/material';
 import {
   CheckCircle as CheckIcon,
   Schedule as PendingIcon,
-  Cancel as CancelIcon,
   PlayArrow as ContinueIcon,
   ErrorOutline as ErrorIcon,
   Timeline as TimelineIcon,
   HourglassEmpty as HourglassIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { OblastStatus, Oblast, OblastStatusType } from '@/types/api.types';
@@ -26,7 +31,6 @@ import type { OblastStatus, Oblast, OblastStatusType } from '@/types/api.types';
 interface RegionalProgressProps {
   oblastStatuses: OblastStatus[];
   oblastData: Oblast[];
-  applicationId?: number;
   isLoading?: boolean;
 }
 
@@ -57,10 +61,25 @@ const getOblastStatusConfig = (status: OblastStatusType) => {
 export const RegionalProgress: React.FC<RegionalProgressProps> = ({
   oblastStatuses,
   oblastData,
-  applicationId,
   isLoading = false,
 }) => {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<OblastStatusType | 'all'>('all');
+
+  // Filtered oblasts
+  const filteredOblastStatuses = useMemo(() => {
+    if (!oblastStatuses) return [];
+
+    return oblastStatuses.filter((oblastStatus) => {
+      const oblast = oblastData.find(o => o.id === oblastStatus.oblast_id);
+      const matchesSearch = !searchQuery ||
+        oblast?.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || oblastStatus.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [oblastStatuses, oblastData, searchQuery, statusFilter]);
 
   if (isLoading) {
     return (
@@ -122,9 +141,58 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
         </Box>
       </Alert>
 
+      {/* Search and Filters */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+        <TextField
+          placeholder="Поиск по названию области..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          size="small"
+          fullWidth
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <Box sx={{ minWidth: { xs: '100%', sm: 200 } }}>
+          <ToggleButtonGroup
+            value={statusFilter}
+            exclusive
+            onChange={(_, value) => value && setStatusFilter(value)}
+            size="small"
+            fullWidth
+          >
+            <ToggleButton value="all">
+              Все ({stats.total})
+            </ToggleButton>
+            <ToggleButton value="trial_created">
+              В работе ({stats.trialCreated})
+            </ToggleButton>
+            <ToggleButton value="approved">
+              Одобрено ({stats.approved})
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+      </Stack>
+
+      {/* Filtered Results Info */}
+      {filteredOblastStatuses.length !== oblastStatuses.length && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Найдено областей: {filteredOblastStatuses.length} из {oblastStatuses.length}
+        </Alert>
+      )}
+
       {/* Карточки областей */}
-      <Grid container spacing={2}>
-        {oblastStatuses.map((oblastStatus) => {
+      {filteredOblastStatuses.length === 0 ? (
+        <Alert severity="warning">
+          Ничего не найдено. Попробуйте изменить параметры поиска или фильтра.
+        </Alert>
+      ) : (
+        <Grid container spacing={2}>
+          {filteredOblastStatuses.map((oblastStatus) => {
           const statusConfig = getOblastStatusConfig(oblastStatus.status);
           const oblast = oblastData.find(o => o.id === oblastStatus.oblast_id);
 
@@ -250,6 +318,7 @@ export const RegionalProgress: React.FC<RegionalProgressProps> = ({
           );
         })}
       </Grid>
+      )}
     </Box>
   );
 };
